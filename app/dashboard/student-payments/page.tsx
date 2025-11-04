@@ -97,8 +97,8 @@ export default function StudentPaymentsPage() {
             paymentMap.set(payment.student_id, {
               student_id: payment.student_id,
               student_name: `${student.student_first_name} ${student.student_last_name}`,
-              package_type_name: (payment.package_types as any)?.name || null,
-              lesson_count: (payment.package_types as any)?.lesson_count || null,
+              package_type_name: (payment.package_types as { name?: string } | null)?.name || null,
+              lesson_count: (payment.package_types as { lesson_count?: number } | null)?.lesson_count || null,
               available_lesson_count: payment.available_lesson_count,
               payment_type: payment.type,
               payment_date: payment.created_at,
@@ -167,8 +167,8 @@ export default function StudentPaymentsPage() {
   })
 
   const sortedPayments = [...filteredPayments].sort((a, b) => {
-    let aValue: any
-    let bValue: any
+    let aValue: string | number
+    let bValue: string | number
 
     if (sortBy === 'student_name') {
       aValue = a.student_name
@@ -286,7 +286,7 @@ export default function StudentPaymentsPage() {
             onChange={(e) => setSortBy(e.target.value)}
             className="w-48"
           >
-            <option value="student_name">Ім'ям студента</option>
+            <option value="student_name">Ім&apos;ям студента</option>
             <option value="package_type">Типом пакету</option>
             <option value="lessons">Кількістю уроків</option>
             <option value="available_lessons">Доступними уроками</option>

@@ -119,7 +119,7 @@ export default function StudentAbsenteesPage() {
         const enrolledClassIds = student.enrolled_class_ids || []
         
         // Only show if student is enrolled in classes that had attendances in range
-        const hasRelevantClasses = enrolledClassIds.some(id => classIdsInRange.includes(id))
+        const hasRelevantClasses = enrolledClassIds.some((id: string) => classIdsInRange.includes(id))
         if (!hasRelevantClasses && classIdsInRange.length > 0) continue
 
         // Get all attendances for this student's classes
@@ -155,8 +155,8 @@ export default function StudentAbsenteesPage() {
         // Only include if student has absences or never attended
         if (totalAbsences > 0 || !hasAnyPresence) {
           const enrolledClasses = enrolledClassIds
-            .map(id => classes.find(c => c.id === id)?.name || id)
-            .filter(name => name !== id)
+            .map((id: string) => classes.find(c => c.id === id)?.name || id)
+            .filter((name: string) => name !== undefined)
 
           absenteeList.push({
             ...student,
@@ -195,8 +195,8 @@ export default function StudentAbsenteesPage() {
   })
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
-    let aValue: any
-    let bValue: any
+    let aValue: string | number | null
+    let bValue: string | number | null
 
     if (sortBy === 'student_name') {
       aValue = `${a.student_first_name} ${a.student_last_name}`
@@ -292,7 +292,7 @@ export default function StudentAbsenteesPage() {
             onChange={(e) => setSortBy(e.target.value)}
             className="w-48"
           >
-            <option value="student_name">Ім'ям студента</option>
+            <option value="student_name">Ім&apos;ям студента</option>
             <option value="age">Віком</option>
             <option value="last_attendance">Датою останньої відвідуваності</option>
             <option value="total_absences">Кількістю пропусків</option>

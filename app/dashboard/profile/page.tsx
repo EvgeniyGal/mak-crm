@@ -127,7 +127,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ім'я *
+                Ім&apos;я *
               </label>
               <Input
                 value={formData.first_name}

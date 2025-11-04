@@ -185,13 +185,17 @@ export default function UsersPage() {
   })
 
   const sortedUsers = [...filteredUsers].sort((a, b) => {
-    let aValue: any = a[sortBy as keyof User]
-    let bValue: any = b[sortBy as keyof User]
+    let aValue: string | number = a[sortBy as keyof User] as string | number
+    let bValue: string | number = b[sortBy as keyof User] as string | number
 
     if (sortBy === 'full_name') {
       aValue = `${a.first_name} ${a.last_name}`
       bValue = `${b.first_name} ${b.last_name}`
     }
+
+    // Handle null/undefined values
+    if (aValue == null) aValue = ''
+    if (bValue == null) bValue = ''
 
     if (sortOrder === 'asc') {
       return aValue > bValue ? 1 : -1
@@ -260,7 +264,7 @@ export default function UsersPage() {
             onChange={(e) => setSortBy(e.target.value)}
             className="w-48"
           >
-            <option value="full_name">Ім'ям</option>
+            <option value="full_name">Ім&apos;ям</option>
             <option value="role">Роллю</option>
             <option value="status">Статусом</option>
             <option value="created_at">Датою створення</option>
@@ -281,7 +285,7 @@ export default function UsersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ім'я</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ім&apos;я</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Роль</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Телефон</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
@@ -407,7 +411,7 @@ export default function UsersPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ім'я *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ім&apos;я *</label>
               <Input
                 value={formData.first_name}
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}

@@ -46,7 +46,7 @@ export default function StudentsPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
   const [classCapacities, setClassCapacities] = useState<Record<string, { available: number; total: number; isFull: boolean }>>({})
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -313,8 +313,8 @@ export default function StudentsPage() {
   })
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
-    let aValue: any = a[sortBy as keyof Student]
-    let bValue: any = b[sortBy as keyof Student]
+    let aValue: string | number = a[sortBy as keyof Student] as string | number
+    let bValue: string | number = b[sortBy as keyof Student] as string | number
 
     if (sortBy === 'age') {
       aValue = new Date(a.student_date_of_birth).getTime()
@@ -323,6 +323,10 @@ export default function StudentsPage() {
       aValue = `${a.student_first_name} ${a.student_last_name}`
       bValue = `${b.student_first_name} ${b.student_last_name}`
     }
+
+    // Handle null/undefined values
+    if (aValue == null) aValue = ''
+    if (bValue == null) bValue = ''
 
     if (sortOrder === 'asc') {
       return aValue > bValue ? 1 : -1
@@ -559,7 +563,7 @@ export default function StudentsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ім'я студента *
+                Ім&apos;я студента *
               </label>
               <Input
                 value={formData.student_first_name}
@@ -590,7 +594,7 @@ export default function StudentsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ім'я батька *
+                Ім&apos;я батька *
               </label>
               <Input
                 value={formData.parent_first_name}

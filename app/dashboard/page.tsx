@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const { t } = useTranslation()
   const [tasks, setTasks] = useState<AdminTask[]>([])
   const [firstLessons, setFirstLessons] = useState<FirstLesson[]>([])
-  const [absentStudents, setAbsentStudents] = useState<AbsentStudent[]>([])
+  const [absentStudents] = useState<AbsentStudent[]>([])
   const [birthdays, setBirthdays] = useState<Birthday[]>([])
   const [finance, setFinance] = useState<FinanceSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -91,9 +91,23 @@ export default function DashboardPage() {
         .gte('created_at', startOfWeek.toISOString())
         .lte('created_at', endOfWeek.toISOString())
 
+      interface PaymentWithRelations {
+        student_id: string
+        created_at: string
+        students: {
+          student_first_name: string
+          student_last_name: string
+          parent_first_name: string
+          parent_middle_name: string | null
+          phone: string
+        }
+        classes: {
+          name: string
+        }
+      }
       if (paymentsData) {
         setFirstLessons(
-          paymentsData.map((p: any) => ({
+          (paymentsData as PaymentWithRelations[]).map((p) => ({
             student_id: p.student_id,
             student_name: `${p.students.student_first_name} ${p.students.student_last_name}`,
             parent_name: `${p.students.parent_first_name} ${p.students.parent_middle_name || ''}`,
@@ -204,10 +218,18 @@ export default function DashboardPage() {
         },
       ]
 
+      interface PaymentWithPackage {
+        created_at: string
+        package_types: {
+          amount: string | number
+        } | null
+      }
       if (paymentsData2) {
-        paymentsData2.forEach((p: any) => {
+        (paymentsData2 as PaymentWithPackage[]).forEach((p) => {
           const paymentDate = new Date(p.created_at)
-          const amount = parseFloat(p.package_types?.amount || 0)
+          const amount = typeof p.package_types?.amount === 'number' 
+            ? p.package_types.amount 
+            : parseFloat(String(p.package_types?.amount || 0))
           
           if (paymentDate >= todayStart) {
             financeList[0].payments += amount

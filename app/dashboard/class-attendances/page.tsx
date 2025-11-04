@@ -129,7 +129,7 @@ export default function ClassAttendancesPage() {
 
       if (studentsData) {
         for (const student of studentsData) {
-          const attendances: AttendanceCell[] = []
+          const attendanceCells: AttendanceCell[] = []
           let totalPresent = 0
           let totalAbsent = 0
           let totalValidReason = 0
@@ -138,17 +138,17 @@ export default function ClassAttendancesPage() {
             const attendance = attendances?.find(a => a.date === day)
             
             if (!attendance) {
-              attendances.push({ date: day, status: 'no class' })
+              attendanceCells.push({ date: day, status: 'no class' })
             } else {
               const presence = presences?.find(p => 
                 p.student_id === student.id && p.attendance_id === attendance.id
               )
 
               if (!presence) {
-                attendances.push({ date: day, status: null })
+                attendanceCells.push({ date: day, status: null })
               } else {
                 const status = presence.status as 'present' | 'absent' | 'absent with valid reason'
-                attendances.push({ date: day, status })
+                attendanceCells.push({ date: day, status })
 
                 if (status === 'present') totalPresent++
                 else if (status === 'absent') totalAbsent++
@@ -159,7 +159,7 @@ export default function ClassAttendancesPage() {
 
           studentAttendanceList.push({
             ...student,
-            attendances,
+            attendances: attendanceCells,
             totalPresent,
             totalAbsent,
             totalValidReason,
@@ -204,12 +204,6 @@ export default function ClassAttendancesPage() {
         return '?'
     }
   }
-
-  const monthNames = [
-    t('common.january'), t('common.february'), t('common.march'), t('common.april'),
-    t('common.may'), t('common.june'), t('common.july'), t('common.august'),
-    t('common.september'), t('common.october'), t('common.november'), t('common.december')
-  ]
 
   const [year, month] = selectedMonth.split('-').map(Number)
   const daysInMonth = new Date(year, month, 0).getDate()

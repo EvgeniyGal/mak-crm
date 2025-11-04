@@ -29,11 +29,13 @@ if (!i18n.isInitialized) {
       interpolation: {
         escapeValue: false,
       },
-      detection: isServer ? false : {
-        order: ['localStorage', 'navigator'],
-        caches: ['localStorage'],
-        lookupLocalStorage: 'i18nextLng',
-      },
+      ...(isServer ? {} : {
+        detection: {
+          order: ['localStorage', 'navigator'],
+          caches: ['localStorage'],
+          lookupLocalStorage: 'i18nextLng',
+        },
+      }),
       react: {
         useSuspense: false,
       },

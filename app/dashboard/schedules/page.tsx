@@ -6,8 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Calendar, Clock } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar } from 'lucide-react'
 import { Calendar as BigCalendar, momentLocalizer, Event, SlotInfo } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import moment from 'moment'
@@ -17,6 +16,18 @@ import 'moment/locale/uk'
 import { useTranslation } from 'react-i18next'
 
 const DragAndDropCalendar = withDragAndDrop(BigCalendar)
+
+interface EventWithId extends Event {
+  id?: string
+}
+
+// Type for the args parameter from react-big-calendar's onEventDrop/onEventResize
+type EventInteractionArgs = {
+  event: EventWithId
+  start: Date | string
+  end: Date | string
+  [key: string]: unknown
+}
 
 moment.locale('uk')
 const localizer = momentLocalizer(moment)
@@ -162,7 +173,7 @@ export default function SchedulesPage() {
   // Convert schedules to calendar events - generate recurring weekly events
   // Generate events for multiple weeks so calendar navigation works
   const events = useMemo(() => {
-    const eventsList: (Event & { resource: Schedule })[] = []
+    const eventsList: (EventWithId & { resource: Schedule })[] = []
     const currentDate = moment()
     // Ensure we start from Sunday (0) not Monday
     // startOf('week') in Ukrainian locale might start on Monday, so we use isoWeek and subtract 1 day
@@ -176,7 +187,7 @@ export default function SchedulesPage() {
         : moment(schedule.time_slot, 'HH:mm:ss').add(1, 'hour')
       
       // Generate recurring events for each week
-      let weekDate = startOfVisibleWeek.clone()
+      const weekDate = startOfVisibleWeek.clone()
       while (weekDate.isBefore(endOfVisibleWeek)) {
         // week_day: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
         // weekDate is already at Sunday (start of week), so we just add the day offset
@@ -194,7 +205,7 @@ export default function SchedulesPage() {
           start: eventStart.toDate(),
           end: eventEnd.toDate(),
           resource: schedule,
-        } as Event & { resource: Schedule })
+        } as EventWithId & { resource: Schedule })
         
         // Move to the next week's Sunday
         weekDate.add(1, 'week')
@@ -367,9 +378,9 @@ export default function SchedulesPage() {
   }
 
   // Handle drag and drop in calendar
-  const handleEventDrop = async (args: any) => {
+  const handleEventDrop = async (args: EventInteractionArgs) => {
     const { event, start, end } = args
-    const eventWithResource = event as Event & { resource: Schedule }
+    const eventWithResource = event as EventWithId & { resource: Schedule }
     const schedule = eventWithResource.resource
     
     // Extract schedule ID from event ID (format: uuid-YYYY-WW)
@@ -386,12 +397,13 @@ export default function SchedulesPage() {
     }
     
     // Create moment objects from the Date objects provided by react-big-calendar
-    const newStartTime = moment(start)
-    const newEndTime = moment(end)
+    const newStartTime = moment(start instanceof Date ? start : new Date(start))
+    const newEndTime = moment(end instanceof Date ? end : new Date(end))
     
     // Calculate week_day: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     // Use native Date.getDay() for consistency - it returns 0-6 where 0 is Sunday
-    const newWeekDay = new Date(start).getDay()
+    const startDate = start instanceof Date ? start : new Date(start)
+    const newWeekDay = startDate.getDay()
 
     // Find the actual schedule record
     const actualSchedule = schedules.find(s => s.id === scheduleId) || schedule
@@ -451,9 +463,9 @@ export default function SchedulesPage() {
   }
 
   // Handle resize (drag boundary) in calendar
-  const handleEventResize = async (args: any) => {
+  const handleEventResize = async (args: EventInteractionArgs) => {
     const { event, start, end } = args
-    const eventWithResource = event as Event & { resource: Schedule }
+    const eventWithResource = event as EventWithId & { resource: Schedule }
     const schedule = eventWithResource.resource
     
     // Extract schedule ID from event ID (format: uuid-YYYY-WW)
@@ -469,8 +481,8 @@ export default function SchedulesPage() {
       }
     }
     
-    const newStartTime = moment(start)
-    const newEndTime = moment(end)
+    const newStartTime = moment(start instanceof Date ? start : new Date(start))
+    const newEndTime = moment(end instanceof Date ? end : new Date(end))
 
     try {
       const { error } = await supabase
@@ -555,9 +567,8 @@ export default function SchedulesPage() {
     return colors[colorIndex]
   }
 
-  const eventStyleGetter = (event: any) => {
-    const schedule = (event as Event & { resource: Schedule }).resource
-    const className = schedule.classes?.name || t('schedules.noName')
+  const eventStyleGetter = (event: EventWithId) => {
+    const schedule = (event as EventWithId & { resource: Schedule }).resource
     const classId = schedule.class_id
     const { bg, border } = getClassColor(classId)
     
@@ -607,16 +618,16 @@ export default function SchedulesPage() {
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
-            startAccessor={(event: any) => event.start}
-            endAccessor={(event: any) => event.end}
+            startAccessor={(event: EventWithId) => event.start || new Date()}
+            endAccessor={(event: EventWithId) => event.end || new Date()}
             style={{ height: '100%' }}
             view="week"
             views={['week']}
             defaultView="week"
             defaultDate={new Date()} // Set to current date
             culture="uk" // Use Ukrainian culture
-            onEventDrop={handleEventDrop}
-            onEventResize={handleEventResize}
+            onEventDrop={handleEventDrop as (args: { event: object; start: Date | string; end: Date | string }) => void}
+            onEventResize={handleEventResize as (args: { event: object; start: Date | string; end: Date | string }) => void}
             onSelectSlot={handleSelectSlot}
             selectable
             resizable
@@ -632,7 +643,7 @@ export default function SchedulesPage() {
               week: t('schedules.week'),
               noEventsInRange: t('schedules.noEventsInRange'),
             }}
-            onSelectEvent={(event: any) => handleEdit((event as Event & { resource: Schedule }).resource)}
+            onSelectEvent={(event: EventWithId) => handleEdit((event as EventWithId & { resource: Schedule }).resource)}
             popup
           />
         </div>

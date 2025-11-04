@@ -167,11 +167,11 @@ export default function AttendancesPage() {
     }
   }
 
-  const checkStudentPayment = async (studentId: string): Promise<{ id: string; available_lesson_count: number } | null> => {
+  const checkStudentPayment = async (studentId: string): Promise<{ id: string; available_lesson_count: number; student_presence_ids: string[] | null } | null> => {
     try {
       const { data, error } = await supabase
         .from('payments')
-        .select('id, available_lesson_count')
+        .select('id, available_lesson_count, student_presence_ids')
         .eq('student_id', studentId)
         .eq('status', 'paid')
         .gt('available_lesson_count', 0)

@@ -102,7 +102,7 @@ export default function SignupPage() {
           <div className="space-y-4">
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                Ім'я
+                Ім&apos;я
               </label>
               <Input
                 id="firstName"
@@ -126,7 +126,7 @@ export default function SignupPage() {
             </div>
             <div>
               <label htmlFor="middleName" className="block text-sm font-medium text-gray-700">
-                По батькові (необов'язково)
+                По батькові (необов&apos;язково)
               </label>
               <Input
                 id="middleName"
@@ -137,7 +137,7 @@ export default function SignupPage() {
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Телефон (необов'язково)
+                Телефон (необов&apos;язково)
               </label>
               <Input
                 id="phone"

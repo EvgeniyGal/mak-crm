@@ -19,7 +19,6 @@ import {
   DollarSign,
   CheckSquare,
   TrendingUp,
-  Settings,
   LogOut,
   FileText,
   ChevronDown,
@@ -29,6 +28,7 @@ import {
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslation } from 'react-i18next'
 import ukTranslation from '@/lib/i18n/locales/uk.json'
+import { LucideIcon } from 'lucide-react'
 
 interface User {
   role: 'admin' | 'owner'
@@ -37,13 +37,15 @@ interface User {
 interface MenuItem {
   href?: string
   label: string
-  icon: any
+  icon: LucideIcon
   ownerOnly?: boolean
   children?: MenuItem[]
 }
 
+type TranslationFunction = (key: string) => string
+
 // Menu items will be generated with translations
-const getMenuItems = (t: any): MenuItem[] => [
+const getMenuItems = (t: TranslationFunction): MenuItem[] => [
   { href: '/dashboard', label: t('dashboard.home'), icon: Home },
   {
     label: t('dashboard.students'),
@@ -122,11 +124,11 @@ export function Sidebar() {
       return getMenuItems((key: string) => {
         // Return Ukrainian fallback during SSR or when not initialized
         const keys = key.split('.')
-        let value: any = ukTranslation
+        let value: unknown = ukTranslation
         for (const k of keys) {
-          value = value?.[k]
+          value = (value as Record<string, unknown>)?.[k]
         }
-        return value || key
+        return (value as string) || key
       })
     }
     // Use actual translations when ready
@@ -135,11 +137,11 @@ export function Sidebar() {
       // If translation returns the key unchanged, try Ukrainian fallback
       if (translated === key && i18n.language !== 'uk') {
         const keys = key.split('.')
-        let value: any = ukTranslation
+        let value: unknown = ukTranslation
         for (const k of keys) {
-          value = value?.[k]
+          value = (value as Record<string, unknown>)?.[k]
         }
-        return value || key
+        return (value as string) || key
       }
       return translated
     })
@@ -199,7 +201,7 @@ export function Sidebar() {
 
   const visibleItems = filterVisibleItems(menuItems)
 
-  const renderMenuItem = (item: MenuItem, level: number = 0) => {
+  const renderMenuItem = (item: MenuItem) => {
     if (item.children) {
       const groupKey = getGroupKey(item.label)
       const isExpanded = isGroupExpanded(item.label)

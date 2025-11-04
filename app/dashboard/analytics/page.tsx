@@ -46,13 +46,19 @@ interface PaymentTypes {
   value: number
 }
 
+interface User {
+  id: string
+  role: string
+  [key: string]: unknown
+}
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
 export default function AnalyticsPage() {
   const supabase = createClient()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [kpiData, setKpiData] = useState<KPIData | null>(null)
   const [enrollmentTrends, setEnrollmentTrends] = useState<EnrollmentTrend[]>([])
   const [attendanceByClass, setAttendanceByClass] = useState<AttendanceByClass[]>([])
@@ -133,7 +139,7 @@ export default function AnalyticsPage() {
 
       const { data: presences } = await supabase
         .from('student_presences')
-        .select('status')
+        .select('status, attendance_id')
         .in('attendance_id', attendanceIds.length > 0 ? attendanceIds : [''])
 
       const totalPresences = presences?.length || 0
@@ -170,10 +176,7 @@ export default function AnalyticsPage() {
 
       const totalExpenditures = expenditures?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
       const totalSalaries = salaries?.reduce((sum, s) => sum + parseFloat(s.amount.toString()), 0) || 0
-      const totalPaymentsAmount = payments?.reduce((sum, p) => {
-        // Would need to join with package_types for actual amount
-        return sum
-      }, 0) || 0
+      // Note: totalPaymentsAmount calculation would need to join with package_types for actual amount
 
       // Enrollment trends
       const enrollmentTrendsData: EnrollmentTrend[] = []

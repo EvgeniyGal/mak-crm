@@ -58,7 +58,11 @@ export default function ClassesPage() {
   const [packageTypes, setPackageTypes] = useState<PackageType[]>([])
   const [pendingPackages, setPendingPackages] = useState<Omit<PackageType, 'id' | 'class_id'>[]>([]) // For new classes
   const [showPackageForm, setShowPackageForm] = useState(false)
-  const [editingPackageType, setEditingPackageType] = useState<PackageType | null>(null)
+  interface PackageTypeWithIndex extends Omit<PackageType, 'id' | 'class_id'> {
+    id?: string | number
+    class_id?: string
+  }
+  const [editingPackageType, setEditingPackageType] = useState<PackageTypeWithIndex | null>(null)
   const [packageFormData, setPackageFormData] = useState({
     name: '',
     amount: 0,
@@ -187,7 +191,7 @@ export default function ClassesPage() {
               lesson_count: packageFormData.lesson_count,
               status: packageFormData.status,
             })
-            .eq('id', editingPackageType.id)
+            .eq('id', editingPackageType.id as string)
 
           if (error) throw error
         } else {
@@ -217,9 +221,9 @@ export default function ClassesPage() {
       }
     } else {
       // For new class, store in pending packages
-      if (editingPackageType && (editingPackageType as any).id !== undefined) {
+      if (editingPackageType && editingPackageType.id !== undefined) {
         // Update pending package using stored index
-        const index = (editingPackageType as any).id
+        const index = editingPackageType.id
         if (typeof index === 'number' && index >= 0 && index < pendingPackages.length) {
           const updated = [...pendingPackages]
           updated[index] = packageFormData
@@ -242,10 +246,14 @@ export default function ClassesPage() {
   }
 
   const handleEditPackageType = (pkg: PackageType | Omit<PackageType, 'id' | 'class_id'>, index?: number) => {
-    const pkgToEdit = { ...pkg } as PackageType
+    const pkgToEdit: PackageTypeWithIndex = { 
+      ...pkg, 
+      id: 'id' in pkg ? pkg.id : undefined,
+      class_id: 'class_id' in pkg ? pkg.class_id : undefined
+    }
     // Store index for pending packages
     if (index !== undefined && !editingClass) {
-      (pkgToEdit as any).id = index
+      pkgToEdit.id = index
     }
     setEditingPackageType(pkgToEdit)
     setPackageFormData({
