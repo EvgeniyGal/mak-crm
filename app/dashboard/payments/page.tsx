@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Payment {
   id: string
@@ -44,6 +45,7 @@ interface PackageType {
 
 export default function PaymentsPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [payments, setPayments] = useState<Payment[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
@@ -175,7 +177,7 @@ export default function PaymentsPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving payment:', error)
-      alert('Помилка збереження платежу')
+      alert(t('payments.errorSaving'))
     }
   }
 
@@ -193,7 +195,7 @@ export default function PaymentsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити цей платіж?')) return
+    if (!confirm(t('common.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -204,7 +206,7 @@ export default function PaymentsPage() {
       await fetchPayments()
     } catch (error) {
       console.error('Error deleting payment:', error)
-      alert('Помилка видалення платежу')
+      alert(t('common.errorDeleting'))
     }
   }
 
@@ -244,16 +246,16 @@ export default function PaymentsPage() {
     : []
 
   if (loading) {
-    return <div className="p-8">Завантаження...</div>
+    return <div className="p-8">{t('common.loading')}</div>
   }
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Платежі</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('payments.title')}</h1>
         <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          Додати платіж
+          {t('payments.addPayment')}
         </Button>
       </div>
 
@@ -263,7 +265,7 @@ export default function PaymentsPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за студентом або класом..."
+              placeholder={t('payments.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -274,19 +276,19 @@ export default function PaymentsPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі статуси</option>
-            <option value="paid">Оплачено</option>
-            <option value="pending">Очікує</option>
+            <option value="all">{t('common.all')} {t('common.statuses')}</option>
+            <option value="paid">{t('payments.paid')}</option>
+            <option value="pending">{t('payments.pending')}</option>
           </Select>
           <Select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі типи</option>
-            <option value="cash">Готівка</option>
-            <option value="card">Картка</option>
-            <option value="test">Тест</option>
+            <option value="all">{t('common.all')} {t('payments.types')}</option>
+            <option value="cash">{t('payments.cash')}</option>
+            <option value="card">{t('payments.card')}</option>
+            <option value="test">{t('payments.test')}</option>
           </Select>
         </div>
       </div>
@@ -298,31 +300,31 @@ export default function PaymentsPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Студент
+                  {t('payments.student')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Клас
+                  {t('payments.class')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Пакет
+                  {t('payments.packageType')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статус
+                  {t('payments.amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип
+                  {t('common.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Доступно уроків
+                  {t('payments.paymentType')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Сума
+                  {t('payments.availableLessons')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('common.createdAt')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -337,6 +339,9 @@ export default function PaymentsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {payment.package_types?.name || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {payment.package_types?.amount ? `${payment.package_types.amount} грн` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -354,9 +359,6 @@ export default function PaymentsPage() {
                     }`}>
                       {payment.available_lesson_count}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.package_types?.amount ? `${payment.package_types.amount} грн` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(payment.created_at)}
@@ -384,7 +386,7 @@ export default function PaymentsPage() {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
+            <label className="text-sm text-gray-700">{t('common.show')}:</label>
             <select
               value={itemsPerPage.toString()}
               onChange={(e) => {
@@ -393,12 +395,12 @@ export default function PaymentsPage() {
               }}
               className="border border-gray-300 rounded px-2 py-1 text-sm"
             >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
+              <option value="10">{t('common.show10')}</option>
+              <option value="20">{t('common.show20')}</option>
+              <option value="50">{t('common.show50')}</option>
             </select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredPayments.length)} з {filteredPayments.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredPayments.length)} {t('common.of')} {filteredPayments.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -408,7 +410,7 @@ export default function PaymentsPage() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Попередня
+              {t('common.previous')}
             </Button>
             <Button
               variant="outline"
@@ -416,7 +418,7 @@ export default function PaymentsPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              Наступна
+              {t('common.next')}
             </Button>
           </div>
         </div>
@@ -426,20 +428,18 @@ export default function PaymentsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingPayment ? 'Редагувати платіж' : 'Додати платіж'}
+        title={editingPayment ? t('payments.editPayment') : t('payments.addPayment')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Студент *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.student')} *</label>
             <Select
               value={formData.student_id}
               onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
               required
             >
-              <option value="">Вибрати студента</option>
+              <option value="">{t('common.selectStudent')}</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>
                   {student.student_first_name} {student.student_last_name}
@@ -448,15 +448,13 @@ export default function PaymentsPage() {
             </Select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Клас *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.class')} *</label>
             <Select
               value={formData.class_id}
               onChange={(e) => handleClassChange(e.target.value)}
               required
             >
-              <option value="">Вибрати клас</option>
+              <option value="">{t('common.selectClass')}</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>
                   {cls.name}
@@ -465,59 +463,51 @@ export default function PaymentsPage() {
             </Select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Тип пакету *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.packageType')} *</label>
             <Select
               value={formData.package_type_id}
               onChange={(e) => handlePackageTypeChange(e.target.value)}
               required
               disabled={!formData.class_id}
             >
-              <option value="">Вибрати тип пакету</option>
+              <option value="">{t('common.selectPackageType')}</option>
               {availablePackageTypes.map((pt) => (
                 <option key={pt.id} value={pt.id}>
-                  {pt.name} ({pt.lesson_count} уроків, {pt.amount} грн)
+                  {pt.name} ({pt.lesson_count} {t('common.lessons')}, {pt.amount} {t('common.uah')})
                 </option>
               ))}
             </Select>
             {!formData.class_id && (
-              <p className="mt-1 text-sm text-gray-500">Спочатку виберіть клас</p>
+              <p className="mt-1 text-sm text-gray-500">{t('payments.selectClassFirst')}</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Статус *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.status')} *</label>
               <Select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 required
               >
-                <option value="pending">Очікує</option>
-                <option value="paid">Оплачено</option>
+                <option value="pending">{t('payments.pending')}</option>
+                <option value="paid">{t('payments.paid')}</option>
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Тип платежу *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.paymentType')} *</label>
               <Select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 required
               >
-                <option value="cash">Готівка</option>
-                <option value="card">Картка</option>
-                <option value="test">Тест</option>
+                <option value="cash">{t('payments.cash')}</option>
+                <option value="card">{t('payments.card')}</option>
+                <option value="test">{t('payments.test')}</option>
               </Select>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Доступно уроків
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.availableLessons')}</label>
             <Input
               type="number"
               min="0"
@@ -527,10 +517,10 @@ export default function PaymentsPage() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingPayment ? 'Зберегти зміни' : 'Додати платіж'}
+              {editingPayment ? t('common.save') : t('payments.addPayment')}
             </Button>
           </div>
         </form>

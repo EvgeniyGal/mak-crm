@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Attendance {
   id: string
@@ -46,6 +47,7 @@ interface AttendanceStats {
 
 export default function AttendancesPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [attendances, setAttendances] = useState<Attendance[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [students, setStudents] = useState<Student[]>([])
@@ -409,16 +411,16 @@ export default function AttendancesPage() {
   const totalPages = Math.ceil(filteredAttendances.length / itemsPerPage)
 
   if (loading) {
-    return <div className="p-8">Завантаження...</div>
+    return <div className="p-8">{t('common.loading')}</div>
   }
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Відвідуваність</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('attendances.title')}</h1>
         <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          Додати відвідуваність
+          {t('attendances.addAttendance')}
         </Button>
       </div>
 
@@ -428,7 +430,7 @@ export default function AttendancesPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за датою або класом..."
+              placeholder={t('attendances.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -439,7 +441,7 @@ export default function AttendancesPage() {
             onChange={(e) => setClassFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі класи</option>
+            <option value="all">{t('common.all')} {t('classes.title')}</option>
             {classes.map((cls) => (
               <option key={cls.id} value={cls.id}>
                 {cls.name}
@@ -450,14 +452,14 @@ export default function AttendancesPage() {
         <div className="flex gap-4">
           <Input
             type="date"
-            placeholder="Від"
+            placeholder={t('common.from')}
             value={dateRangeStart}
             onChange={(e) => setDateRangeStart(e.target.value)}
             className="w-48"
           />
           <Input
             type="date"
-            placeholder="До"
+            placeholder={t('common.to')}
             value={dateRangeEnd}
             onChange={(e) => setDateRangeEnd(e.target.value)}
             className="w-48"

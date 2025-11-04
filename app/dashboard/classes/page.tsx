@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Class {
   id: string
@@ -49,6 +50,7 @@ interface PackageType {
 
 export default function ClassesPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [classes, setClasses] = useState<Class[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
@@ -211,7 +213,7 @@ export default function ClassesPage() {
         setEditingPackageType(null)
       } catch (error) {
         console.error('Error saving package type:', error)
-        alert('Помилка збереження типу пакету')
+        alert(t('classes.errorSavingPackage'))
       }
     } else {
       // For new class, store in pending packages
@@ -256,7 +258,7 @@ export default function ClassesPage() {
   }
 
   const handleDeletePackageType = async (pkgId: string | number) => {
-    if (!confirm('Ви впевнені, що хочете видалити цей тип пакету?')) {
+    if (!confirm(t('classes.confirmDeletePackage'))) {
       return
     }
 
@@ -277,7 +279,7 @@ export default function ClassesPage() {
       await fetchPackageTypes()
     } catch (error) {
       console.error('Error deleting package type:', error)
-      alert('Помилка видалення типу пакету')
+      alert(t('classes.errorDeletingPackage'))
     }
   }
 
@@ -306,7 +308,7 @@ export default function ClassesPage() {
     if (formData.room_id) {
       const room = rooms.find(r => r.id === formData.room_id)
       if (room && formData.student_ids.length > room.capacity) {
-        alert(`Помилка: Клас може вмістити лише ${room.capacity} студентів`)
+        alert(t('classes.capacityError') + `: ${room.capacity} ${t('students.student')}`)
         return
       }
     }
@@ -355,7 +357,7 @@ export default function ClassesPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving class:', error)
-      alert('Помилка збереження класу')
+      alert(t('classes.errorSaving'))
     }
   }
 
@@ -373,7 +375,7 @@ export default function ClassesPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити цей клас?')) return
+    if (!confirm(t('classes.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -384,7 +386,7 @@ export default function ClassesPage() {
       await fetchClasses()
     } catch (error) {
       console.error('Error deleting class:', error)
-      alert('Помилка видалення класу')
+      alert(t('classes.errorDeleting'))
     }
   }
 
@@ -455,10 +457,10 @@ export default function ClassesPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Класи</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('classes.title')}</h1>
         <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          Додати клас
+          {t('classes.addClass')}
         </Button>
       </div>
 
@@ -494,28 +496,28 @@ export default function ClassesPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Назва класу
+                  {t('classes.className')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Вчителі
+                  {t('classes.teachers')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Кімната
+                  {t('classes.room')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Студенти
+                  {t('classes.students')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Вільні місця
+                  {t('classes.freePlaces')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статус
+                  {t('classes.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('common.createdAt')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -626,13 +628,13 @@ export default function ClassesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingClass ? 'Редагувати клас' : 'Додати клас'}
+        title={editingClass ? t('classes.editClass') : t('classes.addClass')}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Назва класу *
+              {t('classes.className')} *
             </label>
             <Input
               value={formData.name}
@@ -644,13 +646,13 @@ export default function ClassesPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Кімната
+                {t('classes.room')}
               </label>
               <Select
                 value={formData.room_id}
                 onChange={(e) => setFormData({ ...formData, room_id: e.target.value })}
               >
-                <option value="">Вибрати кімнату</option>
+                <option value="">{t('classes.selectRoom')}</option>
                 {rooms.map((room) => (
                   <option key={room.id} value={room.id}>
                     {room.name} (місткість: {room.capacity})
@@ -668,23 +670,23 @@ export default function ClassesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Статус *
+                {t('classes.status')} *
               </label>
               <Select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 required
               >
-                <option value="active">Активний</option>
-                <option value="paused">Призупинений</option>
-                <option value="archive">Архів</option>
+                <option value="active">{t('common.active')}</option>
+                <option value="paused">{t('classes.pause')}</option>
+                <option value="archive">{t('classes.archive')}</option>
               </Select>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Вчителі
+              {t('classes.teachers')}
             </label>
             <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
               {teachers.map((teacher) => (
@@ -716,7 +718,7 @@ export default function ClassesPage() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-gray-700">
-                Типи пакетів для класу
+                {t('classes.packageTypes')}
               </label>
               {formData.name && (
                 <Button
@@ -725,7 +727,7 @@ export default function ClassesPage() {
                   size="sm"
                   onClick={() => setShowPackageForm(!showPackageForm)}
                 >
-                  {showPackageForm ? 'Сховати' : 'Додати тип пакету'}
+                  {showPackageForm ? t('common.cancel') : t('classes.addPackage')}
                 </Button>
               )}
             </div>
@@ -733,7 +735,7 @@ export default function ClassesPage() {
               <div className="mb-4 p-4 border-2 border-gray-400 rounded-lg bg-gray-50">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-900">
-                    {editingPackageType ? 'Редагувати тип пакету' : 'Додати тип пакету'}
+                    {editingPackageType ? t('classes.editPackage') : t('classes.addPackage')}
                   </h3>
                   {editingPackageType && (
                     <Button
@@ -748,7 +750,7 @@ export default function ClassesPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Назва пакету *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('classes.packageName')} *</label>
                     <Input
                       value={packageFormData.name}
                       onChange={(e) => setPackageFormData({ ...packageFormData, name: e.target.value })}
@@ -757,7 +759,7 @@ export default function ClassesPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Сума * (0 для тестових уроків)
+                      {t('classes.amountZeroHint')}
                     </label>
                     <Input
                       type="number"
@@ -769,7 +771,7 @@ export default function ClassesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Кількість уроків *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('classes.lessonCount')} *</label>
                     <Input
                       type="number"
                       min="1"
@@ -794,7 +796,7 @@ export default function ClassesPage() {
                     onClick={handleCreatePackageType}
                     disabled={!packageFormData.name || packageFormData.amount < 0 || packageFormData.lesson_count <= 0}
                   >
-                    {editingPackageType ? 'Зберегти зміни' : 'Створити тип пакету'}
+                    {editingPackageType ? t('common.save') : t('classes.addPackage')}
                   </Button>
                   {editingPackageType && (
                     <Button
@@ -878,7 +880,7 @@ export default function ClassesPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Студенти {availableSeats >= 0 && `(${formData.student_ids.length} / ${selectedRoom?.capacity || '∞'})`}
+              {t('classes.students')} {availableSeats >= 0 && `(${formData.student_ids.length} / ${selectedRoom?.capacity || '∞'})`}
             </label>
             {availableSeats <= 0 && formData.room_id && (
               <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm">
@@ -919,10 +921,10 @@ export default function ClassesPage() {
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingClass ? 'Зберегти зміни' : 'Додати клас'}
+              {editingClass ? t('common.save') : t('classes.addClass')}
             </Button>
           </div>
         </form>

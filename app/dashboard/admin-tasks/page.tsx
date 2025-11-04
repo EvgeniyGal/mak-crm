@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search, Archive } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface AdminTask {
   id: string
@@ -36,6 +37,8 @@ export default function AdminTasksPage() {
     comment: '',
     status: 'active',
   })
+
+  const { t } = useTranslation()
 
   useEffect(() => {
     fetchTasks()
@@ -83,7 +86,7 @@ export default function AdminTasksPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving task:', error)
-      alert('Помилка збереження завдання')
+      alert(t('adminTasks.errorSaving'))
     }
   }
 
@@ -119,7 +122,7 @@ export default function AdminTasksPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити це завдання?')) return
+    if (!confirm(t('common.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -130,7 +133,7 @@ export default function AdminTasksPage() {
       await fetchTasks()
     } catch (error) {
       console.error('Error deleting task:', error)
-      alert('Помилка видалення завдання')
+      alert(t('common.errorDeleting'))
     }
   }
 
@@ -194,20 +197,20 @@ export default function AdminTasksPage() {
             onChange={(e) => setTypeFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі типи</option>
-            <option value="first lesson">Перший урок</option>
-            <option value="absent">Відсутні</option>
-            <option value="admin">Адмін</option>
-            <option value="birthday">День народження</option>
+            <option value="all">{t('common.all')} {t('adminTasks.allTypes')}</option>
+            <option value="first lesson">{t('adminTasks.firstLesson')}</option>
+            <option value="absent">{t('adminTasks.absent')}</option>
+            <option value="admin">{t('adminTasks.admin')}</option>
+            <option value="birthday">{t('adminTasks.birthday')}</option>
           </Select>
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі статуси</option>
-            <option value="active">Активні</option>
-            <option value="archive">Архів</option>
+            <option value="all">{t('common.all')} {t('common.statuses')}</option>
+            <option value="active">{t('common.active')}</option>
+            <option value="archive">{t('adminTasks.archive')}</option>
           </Select>
         </div>
       </div>
@@ -219,22 +222,22 @@ export default function AdminTasksPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Назва
+                  {t('adminTasks.titleColumn')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип
+                  {t('adminTasks.type')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Коментар
+                  {t('adminTasks.comment')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статус
+                  {t('common.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('common.createdAt')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -291,7 +294,7 @@ export default function AdminTasksPage() {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
+            <label className="text-sm text-gray-700">{t('common.show')}:</label>
             <select
               value={itemsPerPage.toString()}
               onChange={(e) => {
@@ -305,7 +308,7 @@ export default function AdminTasksPage() {
               <option value="50">50</option>
             </select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTasks.length)} з {filteredTasks.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTasks.length)} {t('common.of')} {filteredTasks.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -315,7 +318,7 @@ export default function AdminTasksPage() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Попередня
+              {t('common.previous')}
             </Button>
             <Button
               variant="outline"
@@ -323,7 +326,7 @@ export default function AdminTasksPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              Наступна
+              {t('common.next')}
             </Button>
           </div>
         </div>
@@ -333,13 +336,13 @@ export default function AdminTasksPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingTask ? 'Редагувати завдання' : 'Додати завдання'}
+        title={editingTask ? t('adminTasks.editTask') : t('adminTasks.addTask')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Назва *
+              {t('common.title')} *
             </label>
             <Input
               value={formData.title}
@@ -349,22 +352,22 @@ export default function AdminTasksPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Тип *
+              {t('adminTasks.type')} *
             </label>
             <Select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value })}
               required
             >
-              <option value="first lesson">Перший урок</option>
-              <option value="absent">Відсутні</option>
-              <option value="admin">Адмін</option>
-              <option value="birthday">День народження</option>
+              <option value="first lesson">{t('adminTasks.firstLesson')}</option>
+              <option value="absent">{t('adminTasks.absent')}</option>
+              <option value="admin">{t('adminTasks.admin')}</option>
+              <option value="birthday">{t('adminTasks.birthday')}</option>
             </Select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Коментар
+              {t('adminTasks.comment')}
             </label>
             <textarea
               value={formData.comment}
@@ -375,23 +378,23 @@ export default function AdminTasksPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Статус *
+              {t('common.status')} *
             </label>
             <Select
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               required
             >
-              <option value="active">Активний</option>
-              <option value="archive">Архів</option>
+              <option value="active">{t('common.active')}</option>
+              <option value="archive">{t('adminTasks.archive')}</option>
             </Select>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingTask ? 'Зберегти зміни' : 'Додати завдання'}
+              {editingTask ? t('common.saveChanges') : t('adminTasks.addTask')}
             </Button>
           </div>
         </form>

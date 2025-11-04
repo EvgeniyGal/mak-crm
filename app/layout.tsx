@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { I18nProvider } from '@/components/i18n-provider'
 
 export const metadata: Metadata = {
   title: 'MAK CRM',
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="uk">
-      <body>{children}</body>
+      <body>
+        <I18nProvider>{children}</I18nProvider>
+      </body>
     </html>
   )
 }

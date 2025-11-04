@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import {
   Home,
@@ -24,7 +24,11 @@ import {
   FileText,
   ChevronDown,
   ChevronRight,
+  User,
 } from 'lucide-react'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { useTranslation } from 'react-i18next'
+import ukTranslation from '@/lib/i18n/locales/uk.json'
 
 interface User {
   role: 'admin' | 'owner'
@@ -38,29 +42,30 @@ interface MenuItem {
   children?: MenuItem[]
 }
 
-const menuItems: MenuItem[] = [
-  { href: '/dashboard', label: 'Головна', icon: Home },
+// Menu items will be generated with translations
+const getMenuItems = (t: any): MenuItem[] => [
+  { href: '/dashboard', label: t('dashboard.home'), icon: Home },
   {
-    label: 'Студенти',
+    label: t('dashboard.students'),
     icon: Users,
     children: [
-      { href: '/dashboard/students', label: 'Перелік студентів', icon: Users },
-      { href: '/dashboard/student-absentees', label: 'Відсутні студенти', icon: UserCheck },
-      { href: '/dashboard/student-payments', label: 'Платежі студентів', icon: CreditCard },
-      { href: '/dashboard/attendances', label: 'Відвідуваність', icon: ClipboardCheck },
-      { href: '/dashboard/class-attendances', label: 'Відвідуваність класів', icon: Calendar },
+      { href: '/dashboard/students', label: t('dashboard.studentList'), icon: Users },
+      { href: '/dashboard/student-absentees', label: t('dashboard.studentAbsentees'), icon: UserCheck },
+      { href: '/dashboard/student-payments', label: t('dashboard.studentPayments'), icon: CreditCard },
+      { href: '/dashboard/attendances', label: t('dashboard.attendances'), icon: ClipboardCheck },
+      { href: '/dashboard/class-attendances', label: t('dashboard.classAttendances'), icon: Calendar },
     ],
   },
-  { href: '/dashboard/teachers', label: 'Вчителі', icon: GraduationCap },
-  { href: '/dashboard/classes', label: 'Класи', icon: Users },
-  { href: '/dashboard/schedules', label: 'Розклад', icon: Clock },
-  { href: '/dashboard/rooms', label: 'Кімнати', icon: Building },
-  { href: '/dashboard/payments', label: 'Платежі', icon: DollarSign },
-  { href: '/dashboard/admin-tasks', label: 'Завдання', icon: CheckSquare },
-  { href: '/dashboard/expenditures', label: 'Витрати', icon: FileText },
-  { href: '/dashboard/teacher-salaries', label: 'Зарплати вчителів', icon: TrendingUp },
-  { href: '/dashboard/users', label: 'Користувачі', icon: Users, ownerOnly: true },
-  { href: '/dashboard/analytics', label: 'Аналітика', icon: TrendingUp, ownerOnly: true },
+  { href: '/dashboard/teachers', label: t('dashboard.teachers'), icon: GraduationCap },
+  { href: '/dashboard/classes', label: t('dashboard.classes'), icon: Users },
+  { href: '/dashboard/schedules', label: t('dashboard.schedules'), icon: Clock },
+  { href: '/dashboard/rooms', label: t('dashboard.rooms'), icon: Building },
+  { href: '/dashboard/payments', label: t('dashboard.payments'), icon: DollarSign },
+  { href: '/dashboard/admin-tasks', label: t('dashboard.adminTasks'), icon: CheckSquare },
+  { href: '/dashboard/expenditures', label: t('dashboard.expenditures'), icon: FileText },
+  { href: '/dashboard/teacher-salaries', label: t('dashboard.teacherSalaries'), icon: TrendingUp },
+  { href: '/dashboard/users', label: t('dashboard.users'), icon: Users, ownerOnly: true },
+  { href: '/dashboard/analytics', label: t('dashboard.analytics'), icon: TrendingUp, ownerOnly: true },
 ]
 
 const getGroupKey = (label: string) => {
@@ -71,8 +76,29 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const { t, i18n } = useTranslation()
   const [user, setUser] = useState<User | null>(null)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set([getGroupKey('Студенти')]))
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // Wait for client-side hydration to prevent SSR mismatch
+  useEffect(() => {
+    setMounted(true)
+    // Load language from localStorage after mount
+    if (typeof window !== 'undefined') {
+      const savedLang = localStorage.getItem('i18nextLng')
+      if (savedLang && savedLang !== i18n.language) {
+        i18n.changeLanguage(savedLang).catch(() => {
+          // Fallback to Ukrainian if language change fails
+          i18n.changeLanguage('uk')
+        })
+      } else if (!savedLang && i18n.language !== 'uk') {
+        // Ensure Ukrainian is default
+        i18n.changeLanguage('uk')
+      }
+    }
+  }, [i18n])
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -89,6 +115,36 @@ export function Sidebar() {
     fetchUser()
   }, [supabase])
 
+  // Use fallback during SSR to prevent hydration mismatch
+  // Only use translations when i18n is ready and mounted
+  const menuItems = useMemo(() => {
+    if (!mounted || !i18n.isInitialized) {
+      return getMenuItems((key: string) => {
+        // Return Ukrainian fallback during SSR or when not initialized
+        const keys = key.split('.')
+        let value: any = ukTranslation
+        for (const k of keys) {
+          value = value?.[k]
+        }
+        return value || key
+      })
+    }
+    // Use actual translations when ready
+    return getMenuItems((key: string) => {
+      const translated = t(key, { defaultValue: key })
+      // If translation returns the key unchanged, try Ukrainian fallback
+      if (translated === key && i18n.language !== 'uk') {
+        const keys = key.split('.')
+        let value: any = ukTranslation
+        for (const k of keys) {
+          value = value?.[k]
+        }
+        return value || key
+      }
+      return translated
+    })
+  }, [mounted, t, i18n.language, i18n.isInitialized])
+
   // Auto-expand groups if current path is a child
   useEffect(() => {
     menuItems.forEach((item) => {
@@ -101,6 +157,11 @@ export function Sidebar() {
         }
       }
     })
+  }, [pathname, menuItems])
+
+  // Close profile menu when route changes
+  useEffect(() => {
+    setProfileMenuOpen(false)
   }, [pathname])
 
   const handleLogout = async () => {
@@ -228,13 +289,58 @@ export function Sidebar() {
         {visibleItems.map((item) => renderMenuItem(item))}
       </nav>
       <div className="p-4 pt-4 border-t border-gray-700 flex-shrink-0">
-        <button
-          onClick={handleLogout}
-          className="flex items-center space-x-3 px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white w-full"
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Вихід</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Profile Button with Dropdown */}
+          <div className="relative flex-1">
+            <button
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              className={cn(
+                'flex items-center justify-center w-full px-4 py-2 rounded-lg transition-colors',
+                profileMenuOpen
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+              )}
+            >
+              <User className="h-5 w-5" />
+            </button>
+            
+            {/* Dropdown Menu */}
+            {profileMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setProfileMenuOpen(false)}
+                />
+                <div className="absolute bottom-full left-0 mb-2 w-64 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-20 overflow-hidden">
+                  <Link
+                    href="/dashboard/profile"
+                    onClick={() => setProfileMenuOpen(false)}
+                    className={cn(
+                      'flex items-center space-x-3 px-4 py-3 transition-colors',
+                      pathname === '/dashboard/profile'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    )}
+                  >
+                    <User className="h-5 w-5" />
+                    <span>{mounted ? t('profile.title') : 'Мій профіль'}</span>
+                  </Link>
+                  <div className="px-4 py-3 border-t border-gray-700">
+                    <LanguageSwitcher />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Exit Button */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from 'react-i18next'
 
 interface AdminTask {
   id: string
@@ -49,6 +50,7 @@ interface FinanceSummary {
 
 export default function DashboardPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [tasks, setTasks] = useState<AdminTask[]>([])
   const [firstLessons, setFirstLessons] = useState<FirstLesson[]>([])
   const [absentStudents, setAbsentStudents] = useState<AbsentStudent[]>([])
@@ -180,21 +182,21 @@ export default function DashboardPage() {
       // Calculate finance summaries
       const financeList: FinanceSummary[] = [
         {
-          period: 'Сьогодні',
+          period: t('dashboard.today'),
           payments: 0,
           expenditures: 0,
           salaries: 0,
           till: 0,
         },
         {
-          period: 'Цей тиждень',
+          period: t('dashboard.thisWeek'),
           payments: 0,
           expenditures: 0,
           salaries: 0,
           till: 0,
         },
         {
-          period: 'Цей місяць',
+          period: t('dashboard.thisMonth'),
           payments: 0,
           expenditures: 0,
           salaries: 0,
@@ -271,22 +273,22 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="p-8">
-        <div className="text-center text-gray-900">Завантаження...</div>
+        <div className="text-center text-gray-900">{t('common.loading')}</div>
       </div>
     )
   }
 
   return (
     <div className="p-8 space-y-8">
-      <h1 className="text-3xl font-bold text-gray-900">Головна панель</h1>
+      <h1 className="text-3xl font-bold text-gray-900">{t('dashboard.title')}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Area 1: First Lesson */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Перший урок</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">{t('dashboard.firstLesson')}</h2>
           <div className="space-y-2">
             {firstLessons.length === 0 ? (
-              <p className="text-gray-500">Немає студентів з першими уроками цього тижня</p>
+              <p className="text-gray-500">{t('dashboard.noFirstLessons')}</p>
             ) : (
               firstLessons.map((lesson) => (
                 <div key={lesson.student_id} className="border-b pb-2">
@@ -301,17 +303,17 @@ export default function DashboardPage() {
 
         {/* Area 2: Absent Students */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Відсутні студенти</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">{t('dashboard.absentStudents')}</h2>
           <div className="space-y-2">
             {absentStudents.length === 0 ? (
-              <p className="text-gray-500">Немає студентів з трьома послідовними пропусками</p>
+              <p className="text-gray-500">{t('dashboard.noAbsentStudents')}</p>
             ) : (
               absentStudents.map((student) => (
                 <div key={student.student_id} className="border-b pb-2">
                   <p className="font-medium text-gray-900">{student.student_name}</p>
                   <p className="text-sm text-gray-600">{student.parent_name} - {student.phone}</p>
                   <p className="text-sm text-gray-500">
-                    Остання відвідуваність: {student.last_attendance_date ? formatDate(student.last_attendance_date) : 'Ніколи'}
+                    {t('dashboard.lastAttendance')}: {student.last_attendance_date ? formatDate(student.last_attendance_date) : t('common.no')}
                   </p>
                 </div>
               ))
@@ -321,15 +323,15 @@ export default function DashboardPage() {
 
         {/* Area 3: Birthdays */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Дні народження</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">{t('dashboard.birthdays')}</h2>
           <div className="space-y-2">
             {birthdays.length === 0 ? (
-              <p className="text-gray-500">Немає днів народження цього тижня</p>
+              <p className="text-gray-500">{t('dashboard.noBirthdays')}</p>
             ) : (
               birthdays.map((b) => (
                 <div key={b.id} className="border-b pb-2">
                   <p className="font-medium text-gray-900">{b.name}</p>
-                  <p className="text-sm text-gray-600">{b.type === 'student' ? 'Студент' : 'Вчитель'}</p>
+                  <p className="text-sm text-gray-600">{b.type === 'student' ? t('dashboard.student') : t('dashboard.teachers')}</p>
                   <p className="text-sm text-gray-500">{formatDate(b.birthday_date)}</p>
                 </div>
               ))
@@ -339,16 +341,16 @@ export default function DashboardPage() {
 
         {/* Area 4: Finance */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Фінанси</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">{t('dashboard.finance')}</h2>
           <div className="space-y-4">
             {finance.map((f) => (
               <div key={f.period} className="border-b pb-2">
                 <p className="font-medium text-gray-900">{f.period}</p>
                 <div className="text-sm space-y-1 text-gray-900">
-                  <p>Платежі: {f.payments.toFixed(2)} грн</p>
-                  <p>Витрати: {f.expenditures.toFixed(2)} грн</p>
-                  <p>Зарплати: {f.salaries.toFixed(2)} грн</p>
-                  <p className="font-semibold">В касі: {f.till.toFixed(2)} грн</p>
+                  <p>{t('dashboard.paymentsLabel')}: {f.payments.toFixed(2)} грн</p>
+                  <p>{t('dashboard.expendituresLabel')}: {f.expenditures.toFixed(2)} грн</p>
+                  <p>{t('dashboard.salaries')}: {f.salaries.toFixed(2)} грн</p>
+                  <p className="font-semibold">{t('dashboard.inTill')}: {f.till.toFixed(2)} грн</p>
                 </div>
               </div>
             ))}
@@ -359,25 +361,25 @@ export default function DashboardPage() {
       {/* Area 5: Admin Tasks */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Завдання адміністратора</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('adminTasks.title')}</h2>
           <Button
             variant="outline"
             size="sm"
             onClick={() => window.location.href = '/dashboard/admin-tasks'}
           >
-            Всі завдання
+            {t('common.all')} {t('adminTasks.title').toLowerCase()}
           </Button>
         </div>
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {tasks.length === 0 ? (
-            <p className="text-gray-500">Немає активних завдань</p>
+            <p className="text-gray-500">{t('dashboard.noTasks')}</p>
           ) : (
             tasks.map((task) => (
               <div key={task.id} className="border-b pb-3 last:border-b-0">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{task.title}</p>
-                    <p className="text-sm text-gray-600 capitalize">Тип: {task.type}</p>
+                    <p className="text-sm text-gray-600 capitalize">{t('dashboard.type')}: {task.type}</p>
                     {task.comment && <p className="text-sm text-gray-500 mt-1">{task.comment}</p>}
                     <p className="text-xs text-gray-400 mt-1">{formatDate(task.created_at)}</p>
                   </div>

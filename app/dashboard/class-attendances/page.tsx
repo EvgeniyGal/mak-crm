@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 interface Student {
   id: string
@@ -25,6 +26,7 @@ interface StudentAttendance extends Student {
 
 export default function ClassAttendancesPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([])
   const [students, setStudents] = useState<StudentAttendance[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
@@ -188,14 +190,14 @@ export default function ClassAttendancesPage() {
     }
   }
 
-  const getStatusLabel = (status: AttendanceCell['status']) => {
+  const getStatusLabel = (status: string | null) => {
     switch (status) {
       case 'present':
-        return 'П'
+        return t('attendances.present')
       case 'absent':
-        return 'Н'
+        return t('attendances.absent')
       case 'absent with valid reason':
-        return 'ПП'
+        return t('attendances.validReason')
       case 'no class':
         return ''
       default:
@@ -204,8 +206,9 @@ export default function ClassAttendancesPage() {
   }
 
   const monthNames = [
-    'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
-    'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+    t('common.january'), t('common.february'), t('common.march'), t('common.april'),
+    t('common.may'), t('common.june'), t('common.july'), t('common.august'),
+    t('common.september'), t('common.october'), t('common.november'), t('common.december')
   ]
 
   const [year, month] = selectedMonth.split('-').map(Number)
@@ -215,7 +218,7 @@ export default function ClassAttendancesPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Відвідуваність класів</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('classAttendances.title')}</h1>
       </div>
 
       {/* Filters */}
@@ -223,13 +226,13 @@ export default function ClassAttendancesPage() {
         <div className="flex gap-4">
           <div className="w-64">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Клас
+              {t('classes.title')}
             </label>
             <Select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
             >
-              <option value="">Вибрати клас</option>
+              <option value="">{t('classes.selectClass')}</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>
                   {cls.name}
@@ -239,7 +242,7 @@ export default function ClassAttendancesPage() {
           </div>
           <div className="w-64">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Місяць
+              {t('common.month')}
             </label>
             <input
               type="month"
@@ -261,9 +264,7 @@ export default function ClassAttendancesPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-100 sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-20 border-r">
-                    Студент
-                  </th>
+                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.student')}</th>
                   {days.map((day) => (
                     <th
                       key={day}
@@ -272,15 +273,9 @@ export default function ClassAttendancesPage() {
                       {day}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-l">
-                    П
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Н
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ПП
-                  </th>
+                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.present')}</th>
+                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.absent')}</th>
+                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.validReason')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -319,7 +314,7 @@ export default function ClassAttendancesPage() {
               <tfoot className="bg-gray-50">
                 <tr>
                   <td className="px-4 py-3 font-medium sticky left-0 bg-gray-50 z-10 border-r">
-                    Всього за день
+                    {t('attendances.totalPerDay')}
                   </td>
                   {days.map((day) => {
                     const date = new Date(year, month - 1, day).toISOString().split('T')[0]
@@ -353,19 +348,19 @@ export default function ClassAttendancesPage() {
             <div className="flex gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-green-500"></div>
-                <span>Присутній (П)</span>
+                <span>{t('attendances.present')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-red-500"></div>
-                <span>Відсутній (Н)</span>
+                <span>{t('attendances.absent')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-yellow-500"></div>
-                <span>Відсутній з поважною причиною (ПП)</span>
+                <span>{t('attendances.validReason')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-gray-300"></div>
-                <span>Немає заняття</span>
+                <span>{t('attendances.noClass')}</span>
               </div>
             </div>
           </div>
@@ -374,13 +369,13 @@ export default function ClassAttendancesPage() {
 
       {!loading && selectedClassId && students.length === 0 && (
         <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-          Немає студентів у вибраному класі або немає даних про відвідуваність за вибраний місяць.
+          {t('classAttendances.noStudentsOrData')}
         </div>
       )}
 
       {!loading && !selectedClassId && (
         <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-          Будь ласка, виберіть клас для перегляду відвідуваності.
+          {t('classAttendances.selectClassMessage')}
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Room {
   id: string
@@ -23,6 +24,7 @@ interface Class {
 
 export default function RoomsPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [rooms, setRooms] = useState<Room[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
@@ -91,7 +93,7 @@ export default function RoomsPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving room:', error)
-      alert('Помилка збереження кімнати')
+      alert(t('common.errorSaving'))
     }
   }
 
@@ -105,7 +107,7 @@ export default function RoomsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити цю кімнату?')) return
+    if (!confirm(t('common.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -116,7 +118,7 @@ export default function RoomsPage() {
       await fetchRooms()
     } catch (error) {
       console.error('Error deleting room:', error)
-      alert('Помилка видалення кімнати')
+      alert(t('common.errorDeleting'))
     }
   }
 
@@ -140,16 +142,16 @@ export default function RoomsPage() {
   const totalPages = Math.ceil(rooms.length / itemsPerPage)
 
   if (loading) {
-    return <div className="p-8">Завантаження...</div>
+    return <div className="p-8">{t('common.loading')}</div>
   }
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Кімнати</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('rooms.title')}</h1>
         <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          Додати кімнату
+          {t('rooms.addRoom')}
         </Button>
       </div>
 
@@ -160,19 +162,19 @@ export default function RoomsPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Назва
+                  {t('rooms.roomName')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Місткість
+                  {t('rooms.capacity')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Призначені класи
+                  {t('rooms.classes')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('common.createdAt')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -219,7 +221,7 @@ export default function RoomsPage() {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
+            <label className="text-sm text-gray-700">{t('common.show')}</label>
             <select
               value={itemsPerPage.toString()}
               onChange={(e) => {
@@ -233,7 +235,7 @@ export default function RoomsPage() {
               <option value="50">50</option>
             </select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, rooms.length)} з {rooms.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, rooms.length)} {t('common.of')} {rooms.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -243,7 +245,7 @@ export default function RoomsPage() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Попередня
+              {t('common.previous')}
             </Button>
             <Button
               variant="outline"
@@ -251,7 +253,7 @@ export default function RoomsPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              Наступна
+              {t('common.next')}
             </Button>
           </div>
         </div>
@@ -261,13 +263,13 @@ export default function RoomsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingRoom ? 'Редагувати кімнату' : 'Додати кімнату'}
+        title={editingRoom ? t('rooms.editRoom') : t('rooms.addRoom')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Назва *
+              {t('rooms.roomName')} *
             </label>
             <Input
               value={formData.name}
@@ -277,7 +279,7 @@ export default function RoomsPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Місткість *
+              {t('rooms.capacity')} *
             </label>
             <Input
               type="number"
@@ -289,10 +291,10 @@ export default function RoomsPage() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingRoom ? 'Зберегти зміни' : 'Додати кімнату'}
+              {editingRoom ? t('common.save') : t('rooms.addRoom')}
             </Button>
           </div>
         </form>

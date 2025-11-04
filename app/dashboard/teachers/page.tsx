@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Teacher {
   id: string
@@ -30,6 +31,7 @@ interface Class {
 
 export default function TeachersPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
@@ -118,7 +120,7 @@ export default function TeachersPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving teacher:', error)
-      alert('Помилка збереження вчителя')
+      alert(t('teachers.errorSaving'))
     }
   }
 
@@ -139,7 +141,7 @@ export default function TeachersPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити цього вчителя?')) return
+    if (!confirm(t('teachers.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -150,7 +152,7 @@ export default function TeachersPage() {
       await fetchTeachers()
     } catch (error) {
       console.error('Error deleting teacher:', error)
-      alert('Помилка видалення вчителя')
+      alert(t('teachers.errorDeleting'))
     }
   }
 
@@ -199,10 +201,10 @@ export default function TeachersPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Вчителі</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('teachers.title')}</h1>
         <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          Додати вчителя
+          {t('teachers.addTeacher')}
         </Button>
       </div>
 
@@ -212,7 +214,7 @@ export default function TeachersPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за ім'ям, телефоном або email..."
+              placeholder={t('common.search') + '...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -223,10 +225,10 @@ export default function TeachersPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі статуси</option>
-            <option value="active">Активні</option>
-            <option value="probational">Випробувальний</option>
-            <option value="fired">Звільнені</option>
+            <option value="all">{t('teachers.allStatuses')}</option>
+            <option value="active">{t('teachers.active')}</option>
+            <option value="probational">{t('teachers.probational')}</option>
+            <option value="fired">{t('teachers.fired')}</option>
           </Select>
         </div>
       </div>
@@ -238,31 +240,31 @@ export default function TeachersPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Вчитель
+                  {t('teachers.teacher')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дата народження
+                  {t('teachers.dateOfBirth')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Телефон
+                  {t('teachers.phone')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
+                  {t('teachers.email')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статус
+                  {t('teachers.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Призначені класи
+                  {t('teachers.assignedClasses')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Коментар
+                  {t('teachers.comment')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('common.createdAt')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -324,7 +326,7 @@ export default function TeachersPage() {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
+            <label className="text-sm text-gray-700">{t('common.show')}</label>
             <Select
               value={itemsPerPage.toString()}
               onChange={(e) => {
@@ -338,7 +340,7 @@ export default function TeachersPage() {
               <option value="50">50</option>
             </Select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTeachers.length)} з {filteredTeachers.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTeachers.length)} {t('common.of')} {filteredTeachers.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -348,7 +350,7 @@ export default function TeachersPage() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Попередня
+              {t('common.previous')}
             </Button>
             <Button
               variant="outline"
@@ -356,7 +358,7 @@ export default function TeachersPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              Наступна
+              {t('common.next')}
             </Button>
           </div>
         </div>
@@ -366,14 +368,14 @@ export default function TeachersPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingTeacher ? 'Редагувати вчителя' : 'Додати вчителя'}
+        title={editingTeacher ? t('teachers.editTeacher') : t('teachers.addTeacher')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ім'я *
+                {t('teachers.firstName')} *
               </label>
               <Input
                 value={formData.first_name}
@@ -383,7 +385,7 @@ export default function TeachersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Прізвище *
+                {t('teachers.lastName')} *
               </label>
               <Input
                 value={formData.last_name}
@@ -393,7 +395,7 @@ export default function TeachersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                По батькові
+                {t('teachers.middleName')}
               </label>
               <Input
                 value={formData.middle_name}
@@ -402,7 +404,7 @@ export default function TeachersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Дата народження
+                {t('teachers.dateOfBirth')}
               </label>
               <Input
                 type="date"
@@ -412,7 +414,7 @@ export default function TeachersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Телефон
+                {t('teachers.phone')}
               </label>
               <Input
                 type="tel"
@@ -422,7 +424,7 @@ export default function TeachersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                {t('teachers.email')}
               </label>
               <Input
                 type="email"
@@ -432,22 +434,22 @@ export default function TeachersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Статус *
+                {t('teachers.status')} *
               </label>
               <Select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 required
               >
-                <option value="active">Активний</option>
-                <option value="probational">Випробувальний</option>
-                <option value="fired">Звільнений</option>
+                <option value="active">{t('teachers.active')}</option>
+                <option value="probational">{t('teachers.probational')}</option>
+                <option value="fired">{t('teachers.fired')}</option>
               </Select>
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Коментар
+              {t('teachers.comment')}
             </label>
             <textarea
               value={formData.comment}
@@ -458,7 +460,7 @@ export default function TeachersPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Призначені класи
+              {t('teachers.assignedClasses')}
             </label>
             <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
               {classes.map((cls) => (
@@ -488,10 +490,10 @@ export default function TeachersPage() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingTeacher ? 'Зберегти зміни' : 'Додати вчителя'}
+              {editingTeacher ? t('common.save') : t('teachers.addTeacher')}
             </Button>
           </div>
         </form>

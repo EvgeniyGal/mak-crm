@@ -14,6 +14,7 @@ import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 import 'moment/locale/uk'
+import { useTranslation } from 'react-i18next'
 
 const DragAndDropCalendar = withDragAndDrop(BigCalendar)
 
@@ -54,10 +55,20 @@ interface Teacher {
   last_name: string
 }
 
-const weekDays = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота']
-
 export default function SchedulesPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
+  
+  const weekDays = [
+    t('schedules.sunday'),
+    t('schedules.monday'),
+    t('schedules.tuesday'),
+    t('schedules.wednesday'),
+    t('schedules.thursday'),
+    t('schedules.friday'),
+    t('schedules.saturday'),
+  ]
+  
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
@@ -179,7 +190,7 @@ export default function SchedulesPage() {
 
         eventsList.push({
           id: `${schedule.id}-${weekDate.format('YYYY-WW')}`, // Unique ID per week
-          title: schedule.classes?.name || 'Без назви',
+          title: schedule.classes?.name || t('schedules.noName'),
           start: eventStart.toDate(),
           end: eventEnd.toDate(),
           resource: schedule,
@@ -190,8 +201,8 @@ export default function SchedulesPage() {
       }
     })
     
-    return eventsList
-  }, [schedules])
+                     return eventsList
+     }, [schedules, t])
 
   const checkConflicts = () => {
     if (!formData.class_id || !formData.start_time || formData.week_day === undefined) {
@@ -235,8 +246,8 @@ export default function SchedulesPage() {
       })
 
       if (roomConflict) {
-        const roomName = rooms.find(r => r.id === classRoomId)?.name || 'Кімната'
-        newConflicts.push(`${roomName} вже зайнята на цей час`)
+        const roomName = rooms.find(r => r.id === classRoomId)?.name || t('rooms.roomName')
+        newConflicts.push(t('schedules.roomOccupied', { roomName }))
       }
     }
 
@@ -258,9 +269,12 @@ export default function SchedulesPage() {
           return (startTime.isBefore(sEnd) && endTime.isAfter(sStart))
         })
 
-        if (teacherConflict) {
-          const teacher = teachers.find(t => t.id === teacherId)
-          newConflicts.push(`Вчитель ${teacher?.first_name} ${teacher?.last_name} вже має заняття на цей час`)
+                 if (teacherConflict) {
+           const teacher = teachers.find(teach => teach.id === teacherId)
+           newConflicts.push(t('schedules.teacherOccupied', { 
+            firstName: teacher?.first_name || '', 
+            lastName: teacher?.last_name || '' 
+          }))
         }
       }
     }
@@ -272,7 +286,7 @@ export default function SchedulesPage() {
     e.preventDefault()
 
     if (conflicts.length > 0) {
-      alert('Виявлено конфлікти розкладу. Будь ласка, вирішіть їх перед збереженням.')
+      alert(t('schedules.conflictMessage'))
       return
     }
 
@@ -310,7 +324,7 @@ export default function SchedulesPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving schedule:', error)
-      alert('Помилка збереження розкладу')
+      alert(t('schedules.errorSaving'))
     }
   }
 
@@ -326,7 +340,7 @@ export default function SchedulesPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити цей розклад?')) return
+    if (!confirm(t('schedules.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -337,7 +351,7 @@ export default function SchedulesPage() {
       await fetchSchedules()
     } catch (error) {
       console.error('Error deleting schedule:', error)
-      alert('Помилка видалення розкладу')
+      alert(t('schedules.errorDeleting'))
     }
   }
 
@@ -410,7 +424,7 @@ export default function SchedulesPage() {
       })
 
       if (roomConflict) {
-        alert('Неможливо перемістити: кімната вже зайнята на цей час.')
+        alert(t('schedules.cannotMoveRoomOccupied'))
         await fetchSchedules() // Refresh to show correct position
         return
       }
@@ -431,7 +445,7 @@ export default function SchedulesPage() {
       await fetchSchedules()
     } catch (error) {
       console.error('Error updating schedule:', error)
-      alert('Помилка оновлення розкладу')
+      alert(t('schedules.errorUpdating'))
       await fetchSchedules() // Refresh on error
     }
   }
@@ -471,7 +485,7 @@ export default function SchedulesPage() {
       await fetchSchedules()
     } catch (error) {
       console.error('Error resizing schedule:', error)
-      alert('Помилка зміни часу розкладу')
+      alert(t('schedules.errorResizing'))
     }
   }
 
@@ -543,7 +557,7 @@ export default function SchedulesPage() {
 
   const eventStyleGetter = (event: any) => {
     const schedule = (event as Event & { resource: Schedule }).resource
-    const className = schedule.classes?.name || 'Без назви'
+    const className = schedule.classes?.name || t('schedules.noName')
     const classId = schedule.class_id
     const { bg, border } = getClassColor(classId)
     
@@ -560,30 +574,30 @@ export default function SchedulesPage() {
   }
 
   if (loading) {
-    return <div className="p-8 text-gray-900">Завантаження...</div>
+    return <div className="p-8 text-gray-900">{t('common.loading')}</div>
   }
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Розклад</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('schedules.title')}</h1>
         <div className="flex gap-2">
           <Button
             variant={view === 'list' ? 'default' : 'outline'}
             onClick={() => setView('list')}
           >
-            Список
+            {t('schedules.list')}
           </Button>
           <Button
             variant={view === 'calendar' ? 'default' : 'outline'}
             onClick={() => setView('calendar')}
           >
             <Calendar className="h-4 w-4 mr-2" />
-            Календар
+            {t('schedules.calendar')}
           </Button>
           <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
             <Plus className="h-4 w-4 mr-2" />
-            Додати розклад
+            {t('schedules.addSchedule')}
           </Button>
         </div>
       </div>
@@ -612,11 +626,11 @@ export default function SchedulesPage() {
               toolbar: CustomToolbar,
             }}
             messages={{
-              next: 'Наступний',
-              previous: 'Попередній',
-              today: 'Сьогодні',
-              week: 'Тиждень',
-              noEventsInRange: 'Немає розкладу в цьому діапазоні',
+              next: t('common.next'),
+              previous: t('common.previous'),
+              today: t('common.today'),
+              week: t('schedules.week'),
+              noEventsInRange: t('schedules.noEventsInRange'),
             }}
             onSelectEvent={(event: any) => handleEdit((event as Event & { resource: Schedule }).resource)}
             popup
@@ -628,13 +642,13 @@ export default function SchedulesPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">Кімната</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">Клас</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">Вчителі</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">Час початку</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">Час закінчення</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">День</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">Дії</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.room')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.class')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.teachers')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.startTime')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.endTime')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.day')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -683,7 +697,7 @@ export default function SchedulesPage() {
 
           <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
             <div className="flex items-center gap-4">
-              <label className="text-sm text-gray-700">Показати:</label>
+              <label className="text-sm text-gray-700">{t('common.show')}:</label>
               <Select
                 value={itemsPerPage.toString()}
                 onChange={(e) => {
@@ -704,7 +718,7 @@ export default function SchedulesPage() {
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                Попередня
+                {t('common.previous')}
               </Button>
               <Button
                 variant="outline"
@@ -712,7 +726,7 @@ export default function SchedulesPage() {
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
               >
-                Наступна
+                {t('common.next')}
               </Button>
             </div>
           </div>
@@ -723,13 +737,13 @@ export default function SchedulesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingSchedule ? 'Редагувати розклад' : 'Додати розклад'}
+        title={editingSchedule ? t('schedules.editSchedule') : t('schedules.addSchedule')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {conflicts.length > 0 && (
             <div className="p-3 bg-red-50 border-2 border-red-400 rounded">
-              <p className="text-sm font-medium text-red-800 mb-2">Виявлено конфлікти:</p>
+              <p className="text-sm font-medium text-red-800 mb-2">{t('schedules.conflictsFound')}:</p>
               <ul className="list-disc list-inside text-sm text-red-700">
                 {conflicts.map((conflict, idx) => (
                   <li key={idx}>{conflict}</li>
@@ -740,14 +754,14 @@ export default function SchedulesPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Клас *
+              {t('schedules.class')} *
             </label>
             <Select
               value={formData.class_id}
               onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}
               required
             >
-              <option value="">Вибрати клас</option>
+              <option value="">{t('schedules.selectClass')}</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>
                   {cls.name}
@@ -759,7 +773,7 @@ export default function SchedulesPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Час початку *
+                {t('schedules.startTime')} *
               </label>
               <Input
                 type="time"
@@ -770,7 +784,7 @@ export default function SchedulesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Час закінчення *
+                {t('schedules.endTime')} *
               </label>
               <Input
                 type="time"
@@ -783,7 +797,7 @@ export default function SchedulesPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              День тижня *
+              {t('schedules.dayOfWeek')} *
             </label>
             <Select
               value={formData.week_day.toString()}
@@ -804,7 +818,7 @@ export default function SchedulesPage() {
                 type="button"
                 variant="destructive"
                 onClick={async () => {
-                  if (confirm('Ви впевнені, що хочете видалити цей розклад?')) {
+                  if (confirm(t('schedules.confirmDelete'))) {
                     await handleDelete(editingSchedule.id)
                     setIsModalOpen(false)
                     resetForm()
@@ -812,15 +826,15 @@ export default function SchedulesPage() {
                 }}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Видалити
+                {t('common.delete')}
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
               <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-                Скасувати
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={conflicts.length > 0}>
-                {editingSchedule ? 'Зберегти зміни' : 'Додати розклад'}
+                {editingSchedule ? t('common.save') : t('schedules.addSchedule')}
               </Button>
             </div>
           </div>
