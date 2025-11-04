@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: #111827; /* text-gray-900 - explicit dark color for better readability */
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Ensure headings have proper text colors */
+h1, h2, h3, h4, h5, h6 {
+  color: #111827; /* text-gray-900 */
+}
+
+/* Ensure paragraphs and other text elements have proper colors */
+p, span, div, li, td, th {
+  color: inherit; /* Inherit from parent, but defaults to body color */
+}
+
+/* Ensure text in white/gray backgrounds is dark */
+.bg-white p,
+.bg-white h1,
+.bg-white h2,
+.bg-white h3,
+.bg-white h4,
+.bg-white h5,
+.bg-white h6,
+.bg-white span,
+.bg-white div,
+.bg-gray-50 p,
+.bg-gray-50 h1,
+.bg-gray-50 h2,
+.bg-gray-50 h3,
+.bg-gray-50 h4,
+.bg-gray-50 h5,
+.bg-gray-50 h6 {
+  color: #111827; /* text-gray-900 */
+}
+
+/* Ensure form elements have proper text colors */
+input,
+select,
+textarea {
+  color: #111827; /* text-gray-900 */
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280; /* text-gray-500 */
+}
+
+/* Improve textarea borders visibility */
+textarea {
+  border-width: 2px !important;
+  border-color: #9ca3af !important; /* border-gray-400 */
+}
+
+textarea:focus {
+  border-color: #3b82f6 !important; /* border-blue-500 */
+  outline: none;
+}
+
+/* Ensure buttons have proper base styles - don't inherit colors */
+button {
+  color: unset;
+}
+
+/* Fix Link wrapper issues - ensure buttons inside links maintain their colors */
+a button,
+a > button {
+  color: unset;
+}
+
+/* Enhanced table header styles across the app */
+thead {
+  background-color: #f3f4f6; /* bg-gray-100 */
+}
+
+thead th {
+  color: #111827 !important; /* text-gray-900 */
+  font-weight: 600 !important;
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+}
+
+/* Override any existing light text colors on table headers */
+thead th.text-gray-500,
+thead th.text-gray-400 {
+  color: #111827 !important; /* text-gray-900 */
+}
+
+/* Ensure table headers have good contrast */
+table thead {
+  background-color: #f3f4f6; /* bg-gray-100 */
+  border-bottom: 2px solid #e5e7eb; /* border-gray-200 */
+}
+
+table thead th {
+  border-bottom: 2px solid #e5e7eb; /* border-gray-200 */
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+

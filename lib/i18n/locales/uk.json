@@ -1,0 +1,57 @@
+{
+  "common": {
+    "add": "Додати",
+    "edit": "Редагувати",
+    "delete": "Видалити",
+    "save": "Зберегти",
+    "cancel": "Скасувати",
+    "search": "Пошук",
+    "filter": "Фільтр",
+    "sort": "Сортувати",
+    "status": "Статус",
+    "createdAt": "Створено",
+    "updatedAt": "Оновлено",
+    "actions": "Дії",
+    "loading": "Завантаження...",
+    "noData": "Немає даних"
+  },
+  "auth": {
+    "login": "Вхід",
+    "logout": "Вихід",
+    "signup": "Реєстрація",
+    "email": "Електронна пошта",
+    "password": "Пароль",
+    "signInWithGoogle": "Увійти через Google",
+    "forgotPassword": "Забули пароль?"
+  },
+  "dashboard": {
+    "home": "Головна",
+    "students": "Студенти",
+    "studentAbsentees": "Відсутні студенти",
+    "studentPayments": "Платежі студентів",
+    "attendances": "Відвідуваність",
+    "classAttendances": "Відвідуваність класів",
+    "teachers": "Вчителі",
+    "classes": "Класи",
+    "schedules": "Розклад",
+    "rooms": "Кімнати",
+    "payments": "Платежі",
+    "adminTasks": "Завдання",
+    "expenditures": "Витрати",
+    "teacherSalaries": "Зарплати вчителів",
+    "users": "Користувачі",
+    "analytics": "Аналітика"
+  },
+  "students": {
+    "title": "Студенти",
+    "addStudent": "Додати студента",
+    "studentName": "Ім'я студента",
+    "parentName": "Ім'я батька",
+    "phone": "Телефон",
+    "email": "Електронна пошта",
+    "age": "Вік",
+    "enrolledClasses": "Зареєстровані класи",
+    "interestedClasses": "Зацікавлені класи"
+  }
+}
+
