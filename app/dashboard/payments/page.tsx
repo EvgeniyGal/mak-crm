@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -68,14 +68,7 @@ export default function PaymentsPage() {
     available_lesson_count: 0,
   })
 
-  useEffect(() => {
-    fetchPayments()
-    fetchStudents()
-    fetchClasses()
-    fetchPackageTypes()
-  }, [])
-
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('payments')
@@ -94,9 +87,9 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('students')
@@ -108,9 +101,9 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error('Error fetching students:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -121,9 +114,9 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchPackageTypes = async () => {
+  const fetchPackageTypes = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('package_types')
@@ -135,7 +128,14 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error('Error fetching package types:', error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchPayments()
+    fetchStudents()
+    fetchClasses()
+    fetchPackageTypes()
+  }, [fetchPayments, fetchStudents, fetchClasses, fetchPackageTypes])
 
   const handleClassChange = (classId: string) => {
     setFormData({
@@ -285,7 +285,7 @@ export default function PaymentsPage() {
             onChange={(e) => setTypeFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">{t('common.all')} {t('payments.types')}</option>
+            <option value="all">{t('common.all')} {t('common.types')}</option>
             <option value="cash">{t('payments.cash')}</option>
             <option value="card">{t('payments.card')}</option>
             <option value="test">{t('payments.test')}</option>
@@ -395,9 +395,9 @@ export default function PaymentsPage() {
               }}
               className="border border-gray-300 rounded px-2 py-1 text-sm"
             >
-              <option value="10">{t('common.show10')}</option>
-              <option value="20">{t('common.show20')}</option>
-              <option value="50">{t('common.show50')}</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
             </select>
             <span className="text-sm text-gray-700">
               {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredPayments.length)} {t('common.of')} {filteredPayments.length}
@@ -505,15 +505,6 @@ export default function PaymentsPage() {
                 <option value="test">{t('payments.test')}</option>
               </Select>
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.availableLessons')}</label>
-            <Input
-              type="number"
-              min="0"
-              value={formData.available_lesson_count}
-              onChange={(e) => setFormData({ ...formData, available_lesson_count: Number(e.target.value) })}
-            />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>

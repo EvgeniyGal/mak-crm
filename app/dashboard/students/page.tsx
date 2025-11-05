@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -70,17 +70,7 @@ export default function StudentsPage() {
     interested_class_ids: [] as string[],
   })
 
-  useEffect(() => {
-    fetchStudents()
-    fetchClasses()
-    fetchRooms()
-  }, [])
-
-  useEffect(() => {
-    calculateCapacities()
-  }, [classes, rooms])
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('students')
@@ -94,9 +84,9 @@ export default function StudentsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -108,9 +98,9 @@ export default function StudentsPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('rooms')
@@ -121,9 +111,9 @@ export default function StudentsPage() {
     } catch (error) {
       console.error('Error fetching rooms:', error)
     }
-  }
+  }, [supabase])
 
-  const calculateCapacities = () => {
+  const calculateCapacities = useCallback(() => {
     const capacities: Record<string, { available: number; total: number; isFull: boolean }> = {}
     
     classes.forEach(cls => {
@@ -149,7 +139,17 @@ export default function StudentsPage() {
     })
 
     setClassCapacities(capacities)
-  }
+  }, [classes, rooms])
+
+  useEffect(() => {
+    fetchStudents()
+    fetchClasses()
+    fetchRooms()
+  }, [fetchStudents, fetchClasses, fetchRooms])
+
+  useEffect(() => {
+    calculateCapacities()
+  }, [calculateCapacities])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -38,12 +38,7 @@ export default function RoomsPage() {
     capacity: 10,
   })
 
-  useEffect(() => {
-    fetchRooms()
-    fetchClasses()
-  }, [])
-
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('rooms')
@@ -57,9 +52,9 @@ export default function RoomsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -70,7 +65,12 @@ export default function RoomsPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchRooms()
+    fetchClasses()
+  }, [fetchRooms, fetchClasses])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Select } from '@/components/ui/select'
 import { useRouter } from 'next/navigation'
@@ -65,17 +65,7 @@ export default function AnalyticsPage() {
   const [paymentTypes, setPaymentTypes] = useState<PaymentTypes[]>([])
   const [dateRange, setDateRange] = useState('month')
 
-  useEffect(() => {
-    checkAccess()
-  }, [])
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchAnalytics()
-    }
-  }, [currentUser, dateRange])
-
-  const checkAccess = async () => {
+  const checkAccess = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data } = await supabase
@@ -92,9 +82,9 @@ export default function AnalyticsPage() {
     } else {
       router.push('/auth/login')
     }
-  }
+  }, [supabase, router])
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true)
     try {
       const now = new Date()
@@ -242,7 +232,17 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, dateRange])
+
+  useEffect(() => {
+    checkAccess()
+  }, [checkAccess])
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchAnalytics()
+    }
+  }, [currentUser, fetchAnalytics])
 
   if (!currentUser || currentUser.role !== 'owner') {
     return <div className="p-8">Завантаження...</div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -54,12 +54,7 @@ export default function TeachersPage() {
     assigned_class_ids: [] as string[],
   })
 
-  useEffect(() => {
-    fetchTeachers()
-    fetchClasses()
-  }, [])
-
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('teachers')
@@ -73,9 +68,9 @@ export default function TeachersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -87,7 +82,12 @@ export default function TeachersPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchTeachers()
+    fetchClasses()
+  }, [fetchTeachers, fetchClasses])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

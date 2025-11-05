@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -48,12 +48,7 @@ export default function UsersPage() {
     status: 'pending',
   })
 
-  useEffect(() => {
-    checkAccess()
-    fetchUsers()
-  }, [])
-
-  const checkAccess = async () => {
+  const checkAccess = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data } = await supabase
@@ -70,9 +65,9 @@ export default function UsersPage() {
     } else {
       router.push('/auth/login')
     }
-  }
+  }, [supabase, router])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -86,7 +81,12 @@ export default function UsersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    checkAccess()
+    fetchUsers()
+  }, [checkAccess, fetchUsers])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

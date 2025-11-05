@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,17 +52,7 @@ export default function StudentAbsenteesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
 
-  useEffect(() => {
-    fetchClasses()
-  }, [])
-
-  useEffect(() => {
-    if (dateRangeStart && dateRangeEnd) {
-      fetchAbsentees()
-    }
-  }, [dateRangeStart, dateRangeEnd, classFilter])
-
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -74,9 +64,9 @@ export default function StudentAbsenteesPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchAbsentees = async () => {
+  const fetchAbsentees = useCallback(async () => {
     setLoading(true)
     try {
       // Get all active students
@@ -181,7 +171,17 @@ export default function StudentAbsenteesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, dateRangeStart, dateRangeEnd, classFilter, classes])
+
+  useEffect(() => {
+    fetchClasses()
+  }, [fetchClasses])
+
+  useEffect(() => {
+    if (dateRangeStart && dateRangeEnd) {
+      fetchAbsentees()
+    }
+  }, [dateRangeStart, dateRangeEnd, classFilter, fetchAbsentees])
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch =

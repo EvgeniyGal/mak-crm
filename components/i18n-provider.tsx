@@ -1,20 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import '@/lib/i18n/config'
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false)
+  const { i18n } = useTranslation()
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    // After hydration, check localStorage for saved language preference
+    // This happens after the initial render, so it won't cause hydration mismatch
+    const savedLang = localStorage.getItem('i18nextLng')
+    if (savedLang && (savedLang === 'uk' || savedLang === 'en')) {
+      if (i18n.language !== savedLang) {
+        // Change language after hydration to avoid mismatch
+        i18n.changeLanguage(savedLang).catch(() => {
+          i18n.changeLanguage('uk')
+        })
+      }
+    }
+  }, [i18n])
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return <>{children}</>
-  }
-
+  // Render children immediately - language is 'uk' on both server and initial client render
   return <>{children}</>
 }
 

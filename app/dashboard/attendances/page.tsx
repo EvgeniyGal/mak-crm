@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -71,19 +71,7 @@ export default function AttendancesPage() {
     class_id: '',
   })
 
-  useEffect(() => {
-    fetchAttendances()
-    fetchClasses()
-    fetchStudents()
-  }, [])
-
-  useEffect(() => {
-    if (attendances.length > 0) {
-      fetchAllStats()
-    }
-  }, [attendances])
-
-  const fetchAttendances = async () => {
+  const fetchAttendances = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('attendances')
@@ -97,9 +85,36 @@ export default function AttendancesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchAllStats = async () => {
+  const fetchClasses = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name, student_ids')
+        .eq('status', 'active')
+
+      if (error) throw error
+      setClasses(data || [])
+    } catch (error) {
+      console.error('Error fetching classes:', error)
+    }
+  }, [supabase])
+
+  const fetchStudents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, student_first_name, student_last_name')
+
+      if (error) throw error
+      setStudents(data || [])
+    } catch (error) {
+      console.error('Error fetching students:', error)
+    }
+  }, [supabase])
+
+  const fetchAllStats = useCallback(async () => {
     const newStats: AttendanceStats = {}
     for (const attendance of attendances) {
       const { data } = await supabase
@@ -116,34 +131,19 @@ export default function AttendancesPage() {
       }
     }
     setStats(newStats)
-  }
+  }, [supabase, attendances])
 
-  const fetchClasses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('id, name, student_ids')
-        .eq('status', 'active')
+  useEffect(() => {
+    fetchAttendances()
+    fetchClasses()
+    fetchStudents()
+  }, [fetchAttendances, fetchClasses, fetchStudents])
 
-      if (error) throw error
-      setClasses(data || [])
-    } catch (error) {
-      console.error('Error fetching classes:', error)
+  useEffect(() => {
+    if (attendances.length > 0) {
+      fetchAllStats()
     }
-  }
-
-  const fetchStudents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, student_first_name, student_last_name')
-
-      if (error) throw error
-      setStudents(data || [])
-    } catch (error) {
-      console.error('Error fetching students:', error)
-    }
-  }
+  }, [attendances, fetchAllStats])
 
   const fetchStudentPresences = async (attendanceId: string) => {
     try {
@@ -584,14 +584,14 @@ export default function AttendancesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingAttendance ? 'Редагувати відвідуваність' : 'Додати відвідуваність'}
+        title={editingAttendance ? t('attendances.editAttendance') : t('attendances.addAttendance')}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Дата *
+                {t('attendances.date')} *
               </label>
               <Input
                 type="date"
@@ -602,7 +602,7 @@ export default function AttendancesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Клас *
+                {t('attendances.class')} *
               </label>
               <Select
                 value={formData.class_id}
@@ -612,7 +612,7 @@ export default function AttendancesPage() {
                 }}
                 required
               >
-                <option value="">Вибрати клас</option>
+                <option value="">{t('common.selectClass')}</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}
@@ -625,7 +625,7 @@ export default function AttendancesPage() {
           {selectedClassStudents.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Студенти класу
+                {t('attendances.students')}
               </label>
               <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-4">
                 {selectedClassStudents.map((student) => (
@@ -646,12 +646,12 @@ export default function AttendancesPage() {
                       }}
                       className="w-48"
                     >
-                      <option value="present">Присутній</option>
-                      <option value="absent">Відсутній</option>
-                      <option value="absent with valid reason">Відсутній з поважною причиною</option>
+                      <option value="present">{t('attendances.present')}</option>
+                      <option value="absent">{t('attendances.absent')}</option>
+                      <option value="absent with valid reason">{t('attendances.absentValidReason')}</option>
                     </Select>
                     <Input
-                      placeholder="Коментар"
+                      placeholder={t('attendances.comment')}
                       value={studentPresences[student.id]?.comment || ''}
                       onChange={(e) => {
                         setStudentPresences({

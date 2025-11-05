@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -36,11 +36,7 @@ export default function ExpendituresPage() {
     comment: '',
   })
 
-  useEffect(() => {
-    fetchExpenditures()
-  }, [])
-
-  const fetchExpenditures = async () => {
+  const fetchExpenditures = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('expenditures')
@@ -54,7 +50,11 @@ export default function ExpendituresPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchExpenditures()
+  }, [fetchExpenditures])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

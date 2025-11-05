@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -85,20 +85,7 @@ export default function ClassesPage() {
     status: 'active',
   })
 
-  useEffect(() => {
-    fetchClasses()
-    fetchTeachers()
-    fetchRooms()
-    fetchStudents()
-  }, [])
-
-  useEffect(() => {
-    if (editingClass || formData.name) {
-      fetchPackageTypes()
-    }
-  }, [editingClass, formData.name])
-
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -112,9 +99,9 @@ export default function ClassesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('teachers')
@@ -126,9 +113,9 @@ export default function ClassesPage() {
     } catch (error) {
       console.error('Error fetching teachers:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('rooms')
@@ -139,9 +126,9 @@ export default function ClassesPage() {
     } catch (error) {
       console.error('Error fetching rooms:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('students')
@@ -153,9 +140,9 @@ export default function ClassesPage() {
     } catch (error) {
       console.error('Error fetching students:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchPackageTypes = async () => {
+  const fetchPackageTypes = useCallback(async () => {
     const classId = editingClass?.id || (formData.name ? classes.find(c => c.name === formData.name)?.id : null)
     if (!classId) return
 
@@ -170,7 +157,20 @@ export default function ClassesPage() {
     } catch (error) {
       console.error('Error fetching package types:', error)
     }
-  }
+  }, [supabase, editingClass, formData.name, classes])
+
+  useEffect(() => {
+    fetchClasses()
+    fetchTeachers()
+    fetchRooms()
+    fetchStudents()
+  }, [fetchClasses, fetchTeachers, fetchRooms, fetchStudents])
+
+  useEffect(() => {
+    if (editingClass || formData.name) {
+      fetchPackageTypes()
+    }
+  }, [editingClass, formData.name, fetchPackageTypes])
 
   const handleCreatePackageType = async () => {
     if (!formData.name) {

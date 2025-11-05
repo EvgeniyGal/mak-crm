@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface TeacherSalary {
   id: string
@@ -25,6 +26,7 @@ interface Teacher {
 
 export default function TeacherSalariesPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [salaries, setSalaries] = useState<TeacherSalary[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,12 +43,7 @@ export default function TeacherSalariesPage() {
     comment: '',
   })
 
-  useEffect(() => {
-    fetchSalaries()
-    fetchTeachers()
-  }, [])
-
-  const fetchSalaries = async () => {
+  const fetchSalaries = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('teacher_salaries')
@@ -60,9 +57,9 @@ export default function TeacherSalariesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('teachers')
@@ -73,7 +70,12 @@ export default function TeacherSalariesPage() {
     } catch (error) {
       console.error('Error fetching teachers:', error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchSalaries()
+    fetchTeachers()
+  }, [fetchSalaries, fetchTeachers])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -307,20 +309,20 @@ export default function TeacherSalariesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingSalary ? 'Редагувати зарплату' : 'Додати зарплату'}
+        title={editingSalary ? t('teacherSalaries.editSalary') : t('teacherSalaries.addSalary')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Вчитель *
+              {t('teacherSalaries.teacher')} *
             </label>
             <Select
               value={formData.teacher}
               onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
               required
             >
-              <option value="">Вибрати вчителя</option>
+              <option value="">{t('common.selectTeacher')}</option>
               {teachers.map((teacher) => (
                 <option key={teacher.id} value={teacher.id}>
                   {teacher.first_name} {teacher.last_name}
@@ -330,7 +332,7 @@ export default function TeacherSalariesPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Сума *
+              {t('teacherSalaries.amount')} *
             </label>
             <Input
               type="number"
@@ -343,7 +345,7 @@ export default function TeacherSalariesPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Коментар
+              {t('teacherSalaries.comment')}
             </label>
             <textarea
               value={formData.comment}
@@ -354,10 +356,10 @@ export default function TeacherSalariesPage() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingSalary ? 'Зберегти зміни' : 'Додати зарплату'}
+              {editingSalary ? t('common.saveChanges') : t('teacherSalaries.addSalary')}
             </Button>
           </div>
         </form>

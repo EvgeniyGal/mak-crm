@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -40,11 +40,7 @@ export default function AdminTasksPage() {
 
   const { t } = useTranslation()
 
-  useEffect(() => {
-    fetchTasks()
-  }, [])
-
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('admin_tasks')
@@ -58,7 +54,11 @@ export default function AdminTasksPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchTasks()
+  }, [fetchTasks])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

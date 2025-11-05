@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
@@ -36,17 +36,7 @@ export default function ClassAttendancesPage() {
   })
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    fetchClasses()
-  }, [])
-
-  useEffect(() => {
-    if (selectedClassId && selectedMonth) {
-      fetchAttendanceData()
-    }
-  }, [selectedClassId, selectedMonth])
-
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -62,9 +52,9 @@ export default function ClassAttendancesPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase, selectedClassId])
 
-  const fetchAttendanceData = async () => {
+  const fetchAttendanceData = useCallback(async () => {
     if (!selectedClassId || !selectedMonth) return
 
     setLoading(true)
@@ -173,7 +163,17 @@ export default function ClassAttendancesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, selectedClassId, selectedMonth])
+
+  useEffect(() => {
+    fetchClasses()
+  }, [fetchClasses])
+
+  useEffect(() => {
+    if (selectedClassId && selectedMonth) {
+      fetchAttendanceData()
+    }
+  }, [selectedClassId, selectedMonth, fetchAttendanceData])
 
   const getStatusColor = (status: AttendanceCell['status']) => {
     switch (status) {

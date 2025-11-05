@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -99,18 +99,7 @@ export default function SchedulesPage() {
     week_day: 0,
   })
 
-  useEffect(() => {
-    fetchSchedules()
-    fetchClasses()
-    fetchRooms()
-    fetchTeachers()
-  }, [])
-
-  useEffect(() => {
-    checkConflicts()
-  }, [formData, schedules])
-
-  const fetchSchedules = async () => {
+  const fetchSchedules = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('schedules')
@@ -128,9 +117,9 @@ export default function SchedulesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -142,9 +131,9 @@ export default function SchedulesPage() {
     } catch (error) {
       console.error('Error fetching classes:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('rooms')
@@ -155,9 +144,9 @@ export default function SchedulesPage() {
     } catch (error) {
       console.error('Error fetching rooms:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('teachers')
@@ -168,9 +157,8 @@ export default function SchedulesPage() {
     } catch (error) {
       console.error('Error fetching teachers:', error)
     }
-  }
+  }, [supabase])
 
-  // Convert schedules to calendar events - generate recurring weekly events
   // Generate events for multiple weeks so calendar navigation works
   const events = useMemo(() => {
     const eventsList: (EventWithId & { resource: Schedule })[] = []
@@ -215,7 +203,7 @@ export default function SchedulesPage() {
                      return eventsList
      }, [schedules, t])
 
-  const checkConflicts = () => {
+  const checkConflicts = useCallback(() => {
     if (!formData.class_id || !formData.start_time || formData.week_day === undefined) {
       setConflicts([])
       return
@@ -291,7 +279,18 @@ export default function SchedulesPage() {
     }
 
     setConflicts(newConflicts)
-  }
+  }, [formData, schedules, classes, rooms, teachers, editingSchedule, t])
+
+  useEffect(() => {
+    fetchSchedules()
+    fetchClasses()
+    fetchRooms()
+    fetchTeachers()
+  }, [fetchSchedules, fetchClasses, fetchRooms, fetchTeachers])
+
+  useEffect(() => {
+    checkConflicts()
+  }, [checkConflicts])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
