@@ -148,13 +148,19 @@ export default function DashboardPage() {
 
       const attendanceIds = attendancesData?.map(a => a.id) || []
       
-      let presencesData: any[] = []
+      interface StudentPresence {
+        student_id: string
+        attendance_id: string
+        status: string
+      }
+      
+      let presencesData: StudentPresence[] = []
       if (attendanceIds.length > 0) {
         const { data } = await supabase
           .from('student_presences')
           .select('student_id, attendance_id, status')
           .in('attendance_id', attendanceIds)
-        presencesData = data || []
+        presencesData = (data || []) as StudentPresence[]
       }
 
       const absentStudentsList: AbsentStudent[] = []
