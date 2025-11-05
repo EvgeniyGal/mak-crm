@@ -57,7 +57,7 @@ export default function DashboardPage() {
   const { t } = useTranslation()
   const [tasks, setTasks] = useState<AdminTask[]>([])
   const [firstLessons, setFirstLessons] = useState<FirstLesson[]>([])
-  const [absentStudents] = useState<AbsentStudent[]>([])
+  const [absentStudents, setAbsentStudents] = useState<AbsentStudent[]>([])
   const [birthdays, setBirthdays] = useState<Birthday[]>([])
   const [finance, setFinance] = useState<FinanceSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,8 +126,87 @@ export default function DashboardPage() {
         )
       }
 
-      // Fetch absent students (3 consecutive absences) - simplified for now
-      // This would need more complex logic with server-side calculations
+      // Fetch absent students (3 consecutive absences)
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      
+      const { data: activeStudents } = await supabase
+        .from('students')
+        .select('id, student_first_name, student_last_name, parent_first_name, parent_middle_name, phone, enrolled_class_ids')
+        .eq('status', 'active')
+        .not('enrolled_class_ids', 'is', null)
+
+      const { data: classesData } = await supabase
+        .from('classes')
+        .select('id, name')
+
+      const { data: attendancesData } = await supabase
+        .from('attendances')
+        .select('id, date, class_id')
+        .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+        .order('date', { ascending: false })
+
+      const attendanceIds = attendancesData?.map(a => a.id) || []
+      
+      let presencesData: any[] = []
+      if (attendanceIds.length > 0) {
+        const { data } = await supabase
+          .from('student_presences')
+          .select('student_id, attendance_id, status')
+          .in('attendance_id', attendanceIds)
+        presencesData = data || []
+      }
+
+      const absentStudentsList: AbsentStudent[] = []
+      
+      if (activeStudents && classesData && attendancesData && presencesData) {
+        for (const student of activeStudents) {
+          const enrolledClassIds = student.enrolled_class_ids || []
+          if (enrolledClassIds.length === 0) continue
+
+          // Get attendances for this student's enrolled classes, ordered by date DESC
+          const studentAttendances = attendancesData
+            .filter(a => enrolledClassIds.includes(a.class_id))
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+          if (studentAttendances.length < 3) continue
+
+          // Get presences for this student
+          const studentPresences = presencesData.filter(p => p.student_id === student.id)
+
+          // Check the last 3 attendances - they should all be marked as absent
+          const lastThreeAttendances = studentAttendances.slice(0, 3)
+          
+          // Check if all 3 have presence records marked as 'absent'
+          const lastThreePresences = lastThreeAttendances.map(attendance => {
+            return studentPresences.find(p => p.attendance_id === attendance.id)
+          }).filter(Boolean)
+
+          // Only count if all 3 have presence records AND all are marked as 'absent'
+          if (lastThreePresences.length === 3) {
+            const allAbsent = lastThreePresences.every(p => p?.status === 'absent')
+            
+            if (allAbsent) {
+              // Get the most recent attendance date
+              const lastAttendanceDate = lastThreeAttendances[0]?.date || null
+              const enrolledClasses = enrolledClassIds
+                .map((id: string) => classesData.find(c => c.id === id)?.name || id)
+                .filter((name: string) => name !== undefined)
+
+              absentStudentsList.push({
+                student_id: student.id,
+                student_name: `${student.student_first_name} ${student.student_last_name}`,
+                parent_name: `${student.parent_first_name} ${student.parent_middle_name || ''}`.trim(),
+                phone: student.phone || '',
+                enrolled_classes: enrolledClasses,
+                last_attendance_date: lastAttendanceDate,
+              })
+            }
+          }
+        }
+      }
+
+      setAbsentStudents(absentStudentsList)
 
       // Fetch birthdays (students this week, teachers next week)
       const today = new Date()
@@ -165,10 +244,16 @@ export default function DashboardPage() {
         teachersData.forEach((t) => {
           if (t.date_of_birth) {
             const dob = new Date(t.date_of_birth)
-            const nextYear = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate())
+            // Use THIS YEAR for the birthday, not next year
+            const thisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate())
+            // Next week range: 7-14 days from today
+            const nextWeekStart = new Date(today)
+            nextWeekStart.setDate(nextWeekStart.getDate() + 7)
             const nextWeekEnd = new Date(today)
             nextWeekEnd.setDate(nextWeekEnd.getDate() + 14)
-            if (nextYear >= today && nextYear <= nextWeekEnd) {
+            
+            // Check if birthday falls in next week (7-14 days from today)
+            if (thisYear >= nextWeekStart && thisYear <= nextWeekEnd) {
               birthdayList.push({
                 id: t.id,
                 name: `${t.first_name} ${t.last_name}`,
