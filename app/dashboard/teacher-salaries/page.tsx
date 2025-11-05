@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface TeacherSalary {
   id: string
@@ -27,6 +30,7 @@ interface Teacher {
 export default function TeacherSalariesPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [salaries, setSalaries] = useState<TeacherSalary[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
@@ -165,6 +169,26 @@ export default function TeacherSalariesPage() {
 
   const totalPages = Math.ceil(filteredSalaries.length / itemsPerPage)
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('teacherSalaries.teacher'), accessor: (row) => getTeacherName(row.teacher) },
+      { header: t('teacherSalaries.amount'), accessor: (row) => row.amount },
+      { header: t('teacherSalaries.comment'), accessor: (row) => row.comment || '' },
+      { header: t('teacherSalaries.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredSalaries, columns, 'teacher-salaries')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('teacherSalaries.teacher'), accessor: (row) => getTeacherName(row.teacher) },
+      { header: t('teacherSalaries.amount'), accessor: (row) => row.amount },
+      { header: t('teacherSalaries.comment'), accessor: (row) => row.comment || '' },
+      { header: t('teacherSalaries.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredSalaries, columns, 'teacher-salaries')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -172,11 +196,20 @@ export default function TeacherSalariesPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Зарплати вчителів</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Додати зарплату
-        </Button>
+        <h1 className="text-3xl font-bold">{t('teacherSalaries.title')}</h1>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredSalaries.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('teacherSalaries.addSalary')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

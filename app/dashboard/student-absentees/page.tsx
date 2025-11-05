@@ -7,6 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { calculateAge, formatDate } from '@/lib/utils'
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Student {
   id: string
@@ -33,6 +37,8 @@ interface AbsenteeData extends Student {
 
 export default function StudentAbsenteesPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [students, setStudents] = useState<AbsenteeData[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
@@ -228,6 +234,28 @@ export default function StudentAbsenteesPage() {
 
   const totalPages = Math.ceil(sortedStudents.length / itemsPerPage)
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('studentAbsentees.student'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
+      { header: t('studentAbsentees.parent'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
+      { header: t('studentAbsentees.phone'), accessor: (row) => row.phone },
+      { header: t('studentAbsentees.enrolledClasses'), accessor: (row) => row.enrolled_classes.join(', ') || '-' },
+      { header: t('studentAbsentees.lastAttendance'), accessor: (row) => row.last_attendance_date ? formatDate(row.last_attendance_date) : t('common.no') },
+    ]
+    exportToXLS(sortedStudents, columns, 'student-absentees')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('studentAbsentees.student'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
+      { header: t('studentAbsentees.parent'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
+      { header: t('studentAbsentees.phone'), accessor: (row) => row.phone },
+      { header: t('studentAbsentees.enrolledClasses'), accessor: (row) => row.enrolled_classes.join(', ') || '-' },
+      { header: t('studentAbsentees.lastAttendance'), accessor: (row) => row.last_attendance_date ? formatDate(row.last_attendance_date) : t('common.no') },
+    ]
+    exportToCSV(sortedStudents, columns, 'student-absentees')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -235,7 +263,14 @@ export default function StudentAbsenteesPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Відсутні студенти</h1>
+        <h1 className="text-3xl font-bold">{t('studentAbsentees.title')}</h1>
+        {isOwner && (
+          <ExportButton 
+            onExportXLS={handleExportXLS}
+            onExportCSV={handleExportCSV}
+            disabled={sortedStudents.length === 0}
+          />
+        )}
       </div>
 
       {/* Date Range and Filters */}

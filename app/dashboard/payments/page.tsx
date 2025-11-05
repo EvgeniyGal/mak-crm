@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Payment {
   id: string
@@ -46,6 +49,7 @@ interface PackageType {
 export default function PaymentsPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [payments, setPayments] = useState<Payment[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
@@ -245,6 +249,34 @@ export default function PaymentsPage() {
     ? packageTypes.filter(pt => pt.class_id === formData.class_id)
     : []
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('payments.student'), accessor: (row) => `${row.students?.student_first_name || ''} ${row.students?.student_last_name || ''}`.trim() },
+      { header: t('payments.class'), accessor: (row) => row.classes?.name || '' },
+      { header: t('payments.packageType'), accessor: (row) => row.package_types?.name || '' },
+      { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
+      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('payments.paymentType'), accessor: (row) => row.type },
+      { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredPayments, columns, 'payments')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('payments.student'), accessor: (row) => `${row.students?.student_first_name || ''} ${row.students?.student_last_name || ''}`.trim() },
+      { header: t('payments.class'), accessor: (row) => row.classes?.name || '' },
+      { header: t('payments.packageType'), accessor: (row) => row.package_types?.name || '' },
+      { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
+      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('payments.paymentType'), accessor: (row) => row.type },
+      { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredPayments, columns, 'payments')
+  }
+
   if (loading) {
     return <div className="p-8">{t('common.loading')}</div>
   }
@@ -253,10 +285,19 @@ export default function PaymentsPage() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('payments.title')}</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('payments.addPayment')}
-        </Button>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredPayments.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('payments.addPayment')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

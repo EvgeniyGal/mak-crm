@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Search, Edit, CheckCircle, XCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from 'react-i18next'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface User {
   id: string
@@ -211,6 +214,36 @@ export default function UsersPage() {
 
   const totalPages = Math.ceil(sortedUsers.length / itemsPerPage)
 
+  const { t } = useTranslation()
+
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('users.firstName'), accessor: (row) => row.first_name },
+      { header: t('users.lastName'), accessor: (row) => row.last_name },
+      { header: t('users.middleName'), accessor: (row) => row.middle_name || '' },
+      { header: t('users.phone'), accessor: (row) => row.phone || '' },
+      { header: t('users.email'), accessor: (row) => row.email },
+      { header: t('users.role'), accessor: (row) => row.role },
+      { header: t('users.status'), accessor: (row) => row.status },
+      { header: t('profile.registrationDate') || 'Дата реєстрації', accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(sortedUsers, columns, 'users')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('users.firstName'), accessor: (row) => row.first_name },
+      { header: t('users.lastName'), accessor: (row) => row.last_name },
+      { header: t('users.middleName'), accessor: (row) => row.middle_name || '' },
+      { header: t('users.phone'), accessor: (row) => row.phone || '' },
+      { header: t('users.email'), accessor: (row) => row.email },
+      { header: t('users.role'), accessor: (row) => row.role },
+      { header: t('users.status'), accessor: (row) => row.status },
+      { header: t('profile.registrationDate') || 'Дата реєстрації', accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(sortedUsers, columns, 'users')
+  }
+
   if (!currentUser || currentUser.role !== 'owner') {
     return <div className="p-8">Завантаження...</div>
   }
@@ -222,7 +255,12 @@ export default function UsersPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Користувачі</h1>
+        <h1 className="text-3xl font-bold">{t('users.title')}</h1>
+        <ExportButton 
+          onExportXLS={handleExportXLS}
+          onExportCSV={handleExportCSV}
+          disabled={sortedUsers.length === 0}
+        />
       </div>
 
       {/* Search and Filters */}

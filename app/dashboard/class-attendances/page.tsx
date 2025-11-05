@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Student {
   id: string
@@ -27,6 +30,7 @@ interface StudentAttendance extends Student {
 export default function ClassAttendancesPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([])
   const [students, setStudents] = useState<StudentAttendance[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
@@ -209,10 +213,69 @@ export default function ClassAttendancesPage() {
   const daysInMonth = new Date(year, month, 0).getDate()
   const days: number[] = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
+  const handleExportXLS = () => {
+    if (students.length === 0) return
+    
+    // Flatten the data for export
+    const exportData = students.flatMap(student => {
+      return student.attendances.map(attendance => ({
+        student_name: `${student.student_first_name} ${student.student_last_name}`,
+        date: attendance.date,
+        status: attendance.status ? getStatusLabel(attendance.status) : '',
+        total_present: student.totalPresent,
+        total_absent: student.totalAbsent,
+        total_valid_reason: student.totalValidReason,
+      }))
+    })
+
+    const columns: ExportColumn[] = [
+      { header: t('classAttendances.student'), accessor: (row) => row.student_name },
+      { header: t('attendances.date'), accessor: (row) => formatDate(row.date) },
+      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('classAttendances.totalPresent'), accessor: (row) => row.total_present },
+      { header: t('classAttendances.totalAbsent'), accessor: (row) => row.total_absent },
+      { header: t('classAttendances.totalValidReason'), accessor: (row) => row.total_valid_reason },
+    ]
+    exportToXLS(exportData, columns, 'class-attendances')
+  }
+
+  const handleExportCSV = () => {
+    if (students.length === 0) return
+    
+    // Flatten the data for export
+    const exportData = students.flatMap(student => {
+      return student.attendances.map(attendance => ({
+        student_name: `${student.student_first_name} ${student.student_last_name}`,
+        date: attendance.date,
+        status: attendance.status ? getStatusLabel(attendance.status) : '',
+        total_present: student.totalPresent,
+        total_absent: student.totalAbsent,
+        total_valid_reason: student.totalValidReason,
+      }))
+    })
+
+    const columns: ExportColumn[] = [
+      { header: t('classAttendances.student'), accessor: (row) => row.student_name },
+      { header: t('attendances.date'), accessor: (row) => formatDate(row.date) },
+      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('classAttendances.totalPresent'), accessor: (row) => row.total_present },
+      { header: t('classAttendances.totalAbsent'), accessor: (row) => row.total_absent },
+      { header: t('classAttendances.totalValidReason'), accessor: (row) => row.total_valid_reason },
+    ]
+    exportToCSV(exportData, columns, 'class-attendances')
+  }
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('classAttendances.title')}</h1>
+        {isOwner && selectedClassId && students.length > 0 && (
+          <ExportButton 
+            onExportXLS={handleExportXLS}
+            onExportCSV={handleExportCSV}
+            disabled={students.length === 0}
+          />
+        )}
       </div>
 
       {/* Filters */}
@@ -285,11 +348,8 @@ export default function ClassAttendancesPage() {
                         title={`${formatDate(attendance.date)}: ${getStatusLabel(attendance.status)}`}
                       >
                         <div
-                          className={`w-8 h-8 rounded mx-auto flex items-center justify-center ${getStatusColor(attendance.status)}`}
+                          className={`w-8 h-8 rounded mx-auto ${getStatusColor(attendance.status)}`}
                         >
-                          <span className="text-white font-bold text-xs">
-                            {getStatusLabel(attendance.status)}
-                          </span>
                         </div>
                       </td>
                     ))}

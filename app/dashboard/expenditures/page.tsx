@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Expenditure {
   id: string
@@ -20,6 +24,8 @@ interface Expenditure {
 
 export default function ExpendituresPage() {
   const supabase = createClient()
+  const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [expenditures, setExpenditures] = useState<Expenditure[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -142,6 +148,28 @@ export default function ExpendituresPage() {
 
   const totalPages = Math.ceil(filteredExpenditures.length / itemsPerPage)
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('expenditures.type') || 'Тип', accessor: (row) => row.type },
+      { header: t('expenditures.person') || 'Особа', accessor: (row) => row.person || '' },
+      { header: t('expenditures.amount') || 'Сума', accessor: (row) => row.amount },
+      { header: t('expenditures.description') || 'Опис', accessor: (row) => row.comment || '' },
+      { header: t('expenditures.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredExpenditures, columns, 'expenditures')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('expenditures.type') || 'Тип', accessor: (row) => row.type },
+      { header: t('expenditures.person') || 'Особа', accessor: (row) => row.person || '' },
+      { header: t('expenditures.amount') || 'Сума', accessor: (row) => row.amount },
+      { header: t('expenditures.description') || 'Опис', accessor: (row) => row.comment || '' },
+      { header: t('expenditures.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredExpenditures, columns, 'expenditures')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -149,11 +177,20 @@ export default function ExpendituresPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Витрати</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Додати витрату
-        </Button>
+        <h1 className="text-3xl font-bold">{t('expenditures.title') || 'Витрати'}</h1>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredExpenditures.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('expenditures.addExpenditure') || 'Додати витрату'}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

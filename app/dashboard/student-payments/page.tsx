@@ -8,6 +8,10 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Search, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface PaymentData {
   student_id: string
@@ -28,6 +32,8 @@ interface PackageType {
 export default function StudentPaymentsPage() {
   const supabase = createClient()
   const router = useRouter()
+  const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [payments, setPayments] = useState<PaymentData[]>([])
   const [packageTypes, setPackageTypes] = useState<PackageType[]>([])
   const [loading, setLoading] = useState(true)
@@ -203,6 +209,32 @@ export default function StudentPaymentsPage() {
 
   const totalPages = Math.ceil(sortedPayments.length / itemsPerPage)
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('studentPayments.student'), accessor: (row) => row.student_name },
+      { header: t('studentPayments.class') || 'Клас', accessor: (row) => row.class_name || '' },
+      { header: t('studentPayments.packageType'), accessor: (row) => row.package_type_name || '' },
+      { header: t('studentPayments.type'), accessor: (row) => row.payment_type },
+      { header: t('studentPayments.status') || 'Статус', accessor: (row) => row.status || '' },
+      { header: t('studentPayments.availableLessons'), accessor: (row) => row.available_lesson_count },
+      { header: t('studentPayments.createdAt'), accessor: (row) => formatDate(row.payment_date) },
+    ]
+    exportToXLS(sortedPayments, columns, 'student-payments')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('studentPayments.student'), accessor: (row) => row.student_name },
+      { header: t('studentPayments.class') || 'Клас', accessor: (row) => row.class_name || '' },
+      { header: t('studentPayments.packageType'), accessor: (row) => row.package_type_name || '' },
+      { header: t('studentPayments.type'), accessor: (row) => row.payment_type },
+      { header: t('studentPayments.status') || 'Статус', accessor: (row) => row.status || '' },
+      { header: t('studentPayments.availableLessons'), accessor: (row) => row.available_lesson_count },
+      { header: t('studentPayments.createdAt'), accessor: (row) => formatDate(row.payment_date) },
+    ]
+    exportToCSV(sortedPayments, columns, 'student-payments')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -210,11 +242,20 @@ export default function StudentPaymentsPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Платежі студентів</h1>
-        <Button onClick={() => router.push('/dashboard/payments')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Створити платіж
-        </Button>
+        <h1 className="text-3xl font-bold">{t('studentPayments.title')}</h1>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={sortedPayments.length === 0}
+            />
+          )}
+          <Button onClick={() => router.push('/dashboard/payments')}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('payments.addPayment')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -223,7 +264,7 @@ export default function StudentPaymentsPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за ім'ям студента або типом пакету..."
+              placeholder={t('studentPayments.searchPlaceholder') || "Пошук за ім'ям студента або типом пакету..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -234,7 +275,7 @@ export default function StudentPaymentsPage() {
             onChange={(e) => setPackageFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі типи пакетів</option>
+            <option value="all">{t('common.allPackageTypes')}</option>
             {packageTypes.map((pkg) => (
               <option key={pkg.id} value={pkg.id}>
                 {pkg.name}
@@ -246,10 +287,10 @@ export default function StudentPaymentsPage() {
             onChange={(e) => setTypeFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі типи платежів</option>
-            <option value="cash">Готівка</option>
-            <option value="card">Картка</option>
-            <option value="test">Тест</option>
+            <option value="all">{t('common.allPaymentTypes')}</option>
+            <option value="cash">{t('common.cash')}</option>
+            <option value="card">{t('common.card')}</option>
+            <option value="test">{t('common.test')}</option>
           </Select>
         </div>
         <div className="flex gap-4">
@@ -258,7 +299,7 @@ export default function StudentPaymentsPage() {
             onChange={(e) => setAvailableLessonsFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі уроки</option>
+            <option value="all">{t('common.allLessons')}</option>
             <option value="zero">0 уроків</option>
             <option value="low">1-3 уроки</option>
             <option value="medium">4-10 уроків</option>
@@ -266,21 +307,21 @@ export default function StudentPaymentsPage() {
           </Select>
           <Input
             type="date"
-            placeholder="Від"
+            placeholder={t('common.from')}
             value={dateRangeStart}
             onChange={(e) => setDateRangeStart(e.target.value)}
             className="w-48"
           />
           <Input
             type="date"
-            placeholder="До"
+            placeholder={t('common.to')}
             value={dateRangeEnd}
             onChange={(e) => setDateRangeEnd(e.target.value)}
             className="w-48"
           />
         </div>
         <div className="flex gap-4 items-center">
-          <label className="text-sm font-medium">Сортувати за:</label>
+          <label className="text-sm font-medium">{t('common.sortBy')}</label>
           <Select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
@@ -378,7 +419,7 @@ export default function StudentPaymentsPage() {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
+            <label className="text-sm text-gray-700">{t('common.show')}</label>
             <Select
               value={itemsPerPage.toString()}
               onChange={(e) => {
@@ -392,7 +433,7 @@ export default function StudentPaymentsPage() {
               <option value="50">50</option>
             </Select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedPayments.length)} з {sortedPayments.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedPayments.length)} {t('common.of')} {sortedPayments.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -402,7 +443,7 @@ export default function StudentPaymentsPage() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Попередня
+              {t('common.previous')}
             </Button>
             <Button
               variant="outline"
@@ -410,7 +451,7 @@ export default function StudentPaymentsPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              Наступна
+              {t('common.next')}
             </Button>
           </div>
         </div>

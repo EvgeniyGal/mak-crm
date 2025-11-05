@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Room {
   id: string
@@ -25,6 +28,7 @@ interface Class {
 export default function RoomsPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [rooms, setRooms] = useState<Room[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,6 +145,30 @@ export default function RoomsPage() {
 
   const totalPages = Math.ceil(rooms.length / itemsPerPage)
 
+  const getClassesForRoom = (roomId: string) => {
+    return classes.filter(c => c.room_id === roomId).map(c => c.name).join(', ') || '-'
+  }
+
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('rooms.roomName'), accessor: (row) => row.name },
+      { header: t('rooms.capacity'), accessor: (row) => row.capacity },
+      { header: t('rooms.classes'), accessor: (row) => getClassesForRoom(row.id) },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(rooms, columns, 'rooms')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('rooms.roomName'), accessor: (row) => row.name },
+      { header: t('rooms.capacity'), accessor: (row) => row.capacity },
+      { header: t('rooms.classes'), accessor: (row) => getClassesForRoom(row.id) },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(rooms, columns, 'rooms')
+  }
+
   if (loading) {
     return <div className="p-8">{t('common.loading')}</div>
   }
@@ -149,10 +177,19 @@ export default function RoomsPage() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('rooms.title')}</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('rooms.addRoom')}
-        </Button>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={rooms.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('rooms.addRoom')}
+          </Button>
+        </div>
       </div>
 
       {/* Table */}

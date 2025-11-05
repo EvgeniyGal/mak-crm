@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search, Archive } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface AdminTask {
   id: string
@@ -21,6 +24,7 @@ interface AdminTask {
 
 export default function AdminTasksPage() {
   const supabase = createClient()
+  const { isOwner } = useOwner()
   const [tasks, setTasks] = useState<AdminTask[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -166,6 +170,28 @@ export default function AdminTasksPage() {
 
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn<AdminTask>[] = [
+      { header: t('adminTasks.titleLabel'), accessor: (row) => row.title },
+      { header: t('adminTasks.type'), accessor: (row) => row.type },
+      { header: t('adminTasks.comment'), accessor: (row) => row.comment || '' },
+      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredTasks, columns, 'admin-tasks')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn<AdminTask>[] = [
+      { header: t('adminTasks.titleLabel'), accessor: (row) => row.title },
+      { header: t('adminTasks.type'), accessor: (row) => row.type },
+      { header: t('adminTasks.comment'), accessor: (row) => row.comment || '' },
+      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredTasks, columns, 'admin-tasks')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -173,11 +199,20 @@ export default function AdminTasksPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Завдання адміністратора</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Додати завдання
-        </Button>
+        <h1 className="text-3xl font-bold">{t('adminTasks.title')}</h1>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredTasks.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('adminTasks.addTask')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

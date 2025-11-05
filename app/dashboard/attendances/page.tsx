@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Attendance {
   id: string
@@ -48,6 +51,7 @@ interface AttendanceStats {
 export default function AttendancesPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [attendances, setAttendances] = useState<Attendance[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [students, setStudents] = useState<Student[]>([])
@@ -410,6 +414,34 @@ export default function AttendancesPage() {
 
   const totalPages = Math.ceil(filteredAttendances.length / itemsPerPage)
 
+  const getClassName = (classId: string) => {
+    return classes.find(c => c.id === classId)?.name || classId
+  }
+
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('attendances.class'), accessor: (row) => getClassName(row.class_id) },
+      { header: t('attendances.date'), accessor: (row) => formatDate(row.date) },
+      { header: t('classAttendances.totalPresent'), accessor: (row) => stats[row.id]?.present || 0 },
+      { header: t('classAttendances.totalAbsent'), accessor: (row) => stats[row.id]?.absent || 0 },
+      { header: t('classAttendances.totalValidReason'), accessor: (row) => stats[row.id]?.validReason || 0 },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredAttendances, columns, 'attendances')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('attendances.class'), accessor: (row) => getClassName(row.class_id) },
+      { header: t('attendances.date'), accessor: (row) => formatDate(row.date) },
+      { header: t('classAttendances.totalPresent'), accessor: (row) => stats[row.id]?.present || 0 },
+      { header: t('classAttendances.totalAbsent'), accessor: (row) => stats[row.id]?.absent || 0 },
+      { header: t('classAttendances.totalValidReason'), accessor: (row) => stats[row.id]?.validReason || 0 },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredAttendances, columns, 'attendances')
+  }
+
   if (loading) {
     return <div className="p-8">{t('common.loading')}</div>
   }
@@ -418,10 +450,19 @@ export default function AttendancesPage() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('attendances.title')}</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('attendances.addAttendance')}
-        </Button>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredAttendances.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('attendances.addAttendance')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

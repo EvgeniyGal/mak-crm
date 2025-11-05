@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Class {
   id: string
@@ -51,6 +54,7 @@ interface PackageType {
 export default function ClassesPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [classes, setClasses] = useState<Class[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
@@ -306,7 +310,7 @@ export default function ClassesPage() {
     if (!classItem.room_id) return 0
     const room = rooms.find(r => r.id === classItem.room_id)
     if (!room) return 0
-    return room.capacity - classItem.student_ids.length
+    return room.capacity - (classItem.student_ids?.length || 0)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -458,6 +462,32 @@ export default function ClassesPage() {
     return student ? `${student.student_first_name} ${student.student_last_name}` : studentId
   }
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('classes.className'), accessor: (row) => row.name },
+      { header: t('classes.teachers'), accessor: (row) => row.teachers_ids.map(getTeacherName).join(', ') || '-' },
+      { header: t('classes.room'), accessor: (row) => getRoomName(row.room_id) },
+      { header: t('classes.students'), accessor: (row) => row.student_ids?.length || 0 },
+      { header: t('classes.freePlaces'), accessor: (row) => getAvailableSeats(row) },
+      { header: t('classes.status'), accessor: (row) => row.status },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredClasses, columns, 'classes')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('classes.className'), accessor: (row) => row.name },
+      { header: t('classes.teachers'), accessor: (row) => row.teachers_ids.map(getTeacherName).join(', ') || '-' },
+      { header: t('classes.room'), accessor: (row) => getRoomName(row.room_id) },
+      { header: t('classes.students'), accessor: (row) => row.student_ids?.length || 0 },
+      { header: t('classes.freePlaces'), accessor: (row) => getAvailableSeats(row) },
+      { header: t('classes.status'), accessor: (row) => row.status },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredClasses, columns, 'classes')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -466,10 +496,19 @@ export default function ClassesPage() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('classes.title')}</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('classes.addClass')}
-        </Button>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredClasses.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('classes.addClass')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

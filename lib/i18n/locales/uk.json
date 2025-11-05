@@ -36,6 +36,9 @@
     "errorDeleting": "Помилка видалення",
     "errorSaving": "Помилка збереження",
     "saveChanges": "Зберегти зміни",
+    "export": "Експорт",
+    "exportXLS": "Експорт XLS",
+    "exportCSV": "Експорт CSV",
     "selectStudent": "Вибрати студента",
     "selectClass": "Вибрати клас",
     "selectPackageType": "Вибрати тип пакету",
@@ -43,7 +46,23 @@
     "lessons": "уроків",
     "uah": "грн",
     "yes": "Так",
-    "no": "Ні"
+    "no": "Ні",
+    "from": "Від",
+    "to": "До",
+    "month": "Місяць",
+    "allStatuses": "Всі статуси",
+    "allTypes": "Всі типи",
+    "allRoles": "Всі ролі",
+    "allTeachers": "Всі вчителі",
+    "allClasses": "Всі класи",
+    "allPackageTypes": "Всі типи пакетів",
+    "allPaymentTypes": "Всі типи платежів",
+    "allLessons": "Всі уроки",
+    "cash": "Готівка",
+    "card": "Картка",
+    "test": "Тестовий",
+    "paid": "Сплачено",
+    "pending": "Очікує"
   },
   "auth": {
     "login": "Вхід",
@@ -122,7 +141,8 @@
     "sortByName": "Ім'ям студента",
     "sortByAge": "Віком",
     "sortByDate": "Датою створення",
-    "noStudents": "Немає студентів"
+    "noStudents": "Немає студентів",
+    "commentPlaceholder": "Додайте коментар про студента..."
   },
   "teachers": {
     "title": "Вчителі",
@@ -144,7 +164,8 @@
     "fired": "Звільнені",
     "confirmDelete": "Ви впевнені, що хочете видалити цього вчителя?",
     "errorDeleting": "Помилка видалення вчителя",
-    "errorSaving": "Помилка збереження вчителя"
+    "errorSaving": "Помилка збереження вчителя",
+    "searchPlaceholder": "Пошук за ім'ям, телефоном або email..."
   },
   "classes": {
     "title": "Класи",
@@ -174,7 +195,10 @@
     "errorDeletingPackage": "Помилка видалення типу пакету",
     "errorSavingPackage": "Помилка збереження типу пакету",
     "capacityError": "Клас може вмістити лише",
-    "required": "обов'язкове"
+    "required": "обов'язкове",
+    "searchPlaceholder": "Пошук за назвою класу або вчителем...",
+    "packageNamePlaceholder": "Напр. Базовий пакет",
+    "amountPlaceholder": "0.00"
   },
   "schedules": {
     "title": "Розклад",
@@ -250,7 +274,9 @@
     "totalPresent": "Всього присутніх",
     "totalAbsent": "Всього відсутніх",
     "totalValidReason": "Всього з причиною",
-    "noStudents": "Немає студентів у класі"
+    "noStudents": "Немає студентів у класі",
+    "noStudentsOrData": "Немає студентів або даних для відображення",
+    "selectClassMessage": "Будь ласка, виберіть клас для перегляду відвідуваності"
   },
   "payments": {
     "title": "Платежі",
@@ -275,7 +301,8 @@
     "availableLessons": "Доступні уроки",
     "errorSaving": "Помилка збереження платежу",
     "errorDeleting": "Помилка видалення платежу",
-    "confirmDelete": "Ви впевнені, що хочете видалити цей платіж?"
+    "confirmDelete": "Ви впевнені, що хочете видалити цей платіж?",
+    "searchPlaceholder": "Пошук за студентом або класом..."
   },
   "studentPayments": {
     "title": "Платежі студентів",
@@ -286,7 +313,8 @@
     "type": "Тип",
     "status": "Статус",
     "availableLessons": "Доступні уроки",
-    "createdAt": "Створено"
+    "createdAt": "Створено",
+    "searchPlaceholder": "Пошук за ім'ям студента або типом пакету..."
   },
   "studentAbsentees": {
     "title": "Відсутні студенти",
@@ -296,7 +324,8 @@
     "phone": "Телефон",
     "enrolledClasses": "Зареєстровані класи",
     "lastAttendance": "Остання відвідуваність",
-    "noAbsentStudents": "Немає відсутніх студентів"
+    "noAbsentStudents": "Немає відсутніх студентів",
+    "searchPlaceholder": "Пошук за ім'ям, батьком, телефоном або email..."
   },
   "adminTasks": {
     "title": "Завдання",
@@ -315,7 +344,8 @@
     "completed": "Виконано",
     "errorSaving": "Помилка збереження завдання",
     "errorDeleting": "Помилка видалення завдання",
-    "confirmDelete": "Ви впевнені, що хочете видалити це завдання?"
+    "confirmDelete": "Ви впевнені, що хочете видалити це завдання?",
+    "searchPlaceholder": "Пошук за назвою або коментарем..."
   },
   "expenditures": {
     "title": "Витрати",
@@ -326,7 +356,10 @@
     "date": "Дата",
     "errorSaving": "Помилка збереження витрати",
     "errorDeleting": "Помилка видалення витрати",
-    "confirmDelete": "Ви впевнені, що хочете видалити цю витрату?"
+    "confirmDelete": "Ви впевнені, що хочете видалити цю витрату?",
+    "searchPlaceholder": "Пошук за особою або коментарем...",
+    "person": "Особа",
+    "type": "Тип"
   },
   "teacherSalaries": {
     "title": "Зарплати вчителів",
@@ -339,7 +372,8 @@
     "comment": "Коментар",
     "errorSaving": "Помилка збереження зарплати",
     "errorDeleting": "Помилка видалення зарплати",
-    "confirmDelete": "Ви впевнені, що хочете видалити цю зарплату?"
+    "confirmDelete": "Ви впевнені, що хочете видалити цю зарплату?",
+    "searchPlaceholder": "Пошук за вчителем або коментарем..."
   },
   "users": {
     "title": "Користувачі",
@@ -360,7 +394,8 @@
     "confirmDelete": "Ви впевнені, що хочете видалити цього користувача?",
     "errorSaving": "Помилка збереження користувача",
     "errorDeleting": "Помилка видалення користувача",
-    "errorApproving": "Помилка затвердження користувача"
+    "errorApproving": "Помилка затвердження користувача",
+    "searchPlaceholder": "Пошук за ім'ям, телефоном або email..."
   },
   "analytics": {
     "title": "Аналітика",

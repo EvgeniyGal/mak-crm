@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Teacher {
   id: string
@@ -32,6 +35,7 @@ interface Class {
 export default function TeachersPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
@@ -194,6 +198,38 @@ export default function TeachersPage() {
     return classes.find(c => c.id === classId)?.name || classId
   }
 
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('teachers.firstName'), accessor: (row) => row.first_name },
+      { header: t('teachers.lastName'), accessor: (row) => row.last_name },
+      { header: t('teachers.middleName'), accessor: (row) => row.middle_name || '' },
+      { header: t('teachers.dateOfBirth'), accessor: (row) => row.date_of_birth ? formatDate(row.date_of_birth) : '' },
+      { header: t('teachers.phone'), accessor: (row) => row.phone || '' },
+      { header: t('teachers.email'), accessor: (row) => row.email || '' },
+      { header: t('teachers.status'), accessor: (row) => row.status },
+      { header: t('teachers.assignedClasses'), accessor: (row) => row.assigned_class_ids.map(getClassName).join(', ') || '' },
+      { header: t('teachers.comment'), accessor: (row) => row.comment || '' },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(filteredTeachers, columns, 'teachers')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('teachers.firstName'), accessor: (row) => row.first_name },
+      { header: t('teachers.lastName'), accessor: (row) => row.last_name },
+      { header: t('teachers.middleName'), accessor: (row) => row.middle_name || '' },
+      { header: t('teachers.dateOfBirth'), accessor: (row) => row.date_of_birth ? formatDate(row.date_of_birth) : '' },
+      { header: t('teachers.phone'), accessor: (row) => row.phone || '' },
+      { header: t('teachers.email'), accessor: (row) => row.email || '' },
+      { header: t('teachers.status'), accessor: (row) => row.status },
+      { header: t('teachers.assignedClasses'), accessor: (row) => row.assigned_class_ids.map(getClassName).join(', ') || '' },
+      { header: t('teachers.comment'), accessor: (row) => row.comment || '' },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(filteredTeachers, columns, 'teachers')
+  }
+
   if (loading) {
     return <div className="p-8">Завантаження...</div>
   }
@@ -202,10 +238,19 @@ export default function TeachersPage() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('teachers.title')}</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('teachers.addTeacher')}
-        </Button>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredTeachers.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('teachers.addTeacher')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

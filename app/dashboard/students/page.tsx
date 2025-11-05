@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select'
 import { calculateAge, formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 interface Student {
   id: string
@@ -31,6 +34,7 @@ interface Class {
   name: string
   room_id: string | null
   student_ids: string[]
+  status?: string
 }
 
 interface Room {
@@ -42,6 +46,7 @@ interface Room {
 export default function StudentsPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
@@ -88,10 +93,10 @@ export default function StudentsPage() {
 
   const fetchClasses = useCallback(async () => {
     try {
+      // Fetch all classes (not just active) to show names for enrolled classes
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name, room_id, student_ids')
-        .eq('status', 'active')
+        .select('id, name, room_id, student_ids, status')
 
       if (error) throw error
       setClasses(data || [])
@@ -142,9 +147,14 @@ export default function StudentsPage() {
   }, [classes, rooms])
 
   useEffect(() => {
-    fetchStudents()
-    fetchClasses()
-    fetchRooms()
+    const loadData = async () => {
+      await Promise.all([
+        fetchStudents(),
+        fetchClasses(),
+        fetchRooms()
+      ])
+    }
+    loadData()
   }, [fetchStudents, fetchClasses, fetchRooms])
 
   useEffect(() => {
@@ -342,18 +352,61 @@ export default function StudentsPage() {
 
   const totalPages = Math.ceil(sortedStudents.length / itemsPerPage)
 
-  const getClassName = (classId: string) => {
-    return classes.find(c => c.id === classId)?.name || classId
+  const getClassName = (classId: string | null | undefined): string | null => {
+    if (!classId) return null
+    const foundClass = classes.find(c => c.id === classId)
+    return foundClass?.name || null
+  }
+
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('students.studentName'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
+      { header: t('students.lastName'), accessor: (row) => row.student_last_name },
+      { header: t('students.dateOfBirth'), accessor: (row) => formatDate(row.student_date_of_birth) },
+      { header: t('students.age'), accessor: (row) => calculateAge(row.student_date_of_birth) },
+      { header: t('students.parentName'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
+      { header: t('students.phone'), accessor: (row) => row.phone },
+      { header: t('students.email'), accessor: (row) => row.email || '' },
+      { header: t('students.status'), accessor: (row) => row.status },
+      { header: t('students.enrolledClasses'), accessor: (row) => row.enrolled_class_ids?.map(getClassName).filter((name: string | null): name is string => name !== null).join(', ') || '-' },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToXLS(sortedStudents, columns, 'students')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('students.studentName'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
+      { header: t('students.lastName'), accessor: (row) => row.student_last_name },
+      { header: t('students.dateOfBirth'), accessor: (row) => formatDate(row.student_date_of_birth) },
+      { header: t('students.age'), accessor: (row) => calculateAge(row.student_date_of_birth) },
+      { header: t('students.parentName'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
+      { header: t('students.phone'), accessor: (row) => row.phone },
+      { header: t('students.email'), accessor: (row) => row.email || '' },
+      { header: t('students.status'), accessor: (row) => row.status },
+      { header: t('students.enrolledClasses'), accessor: (row) => row.enrolled_class_ids?.map(getClassName).filter((name: string | null): name is string => name !== null).join(', ') || '-' },
+      { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
+    ]
+    exportToCSV(sortedStudents, columns, 'students')
   }
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('students.title')}</h1>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('students.addStudent')}
-        </Button>
+        <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={sortedStudents.length === 0}
+            />
+          )}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('students.addStudent')}
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -470,13 +523,23 @@ export default function StudentsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {student.enrolled_class_ids.length > 0
-                      ? student.enrolled_class_ids.map(id => getClassName(id)).join(', ')
+                    {student.enrolled_class_ids && Array.isArray(student.enrolled_class_ids) && student.enrolled_class_ids.length > 0
+                      ? (() => {
+                          const classNames = student.enrolled_class_ids
+                            .map(id => getClassName(id))
+                            .filter((name): name is string => name !== null && name !== undefined)
+                          return classNames.length > 0 ? classNames.join(', ') : '-'
+                        })()
                       : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {student.interested_class_ids.length > 0
-                      ? student.interested_class_ids.map(id => getClassName(id)).join(', ')
+                    {student.interested_class_ids && Array.isArray(student.interested_class_ids) && student.interested_class_ids.length > 0
+                      ? (() => {
+                          const classNames = student.interested_class_ids
+                            .map(id => getClassName(id))
+                            .filter((name): name is string => name !== null && name !== undefined)
+                          return classNames.length > 0 ? classNames.join(', ') : '-'
+                        })()
                       : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
@@ -665,7 +728,7 @@ export default function StudentsPage() {
               Зареєстровані класи
             </label>
             <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
-              {classes.map((cls) => {
+              {classes.filter(cls => cls.status === 'active').map((cls) => {
                 const capacity = classCapacities[cls.id]
                 const isFull = capacity?.isFull || false
                 const isAlreadyEnrolled = editingStudent?.enrolled_class_ids.includes(cls.id)
@@ -715,7 +778,7 @@ export default function StudentsPage() {
               Зацікавлені класи
             </label>
             <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
-              {classes.map((cls) => (
+              {classes.filter(cls => cls.status === 'active').map((cls) => (
                 <label key={cls.id} className="flex items-center">
                   <input
                     type="checkbox"

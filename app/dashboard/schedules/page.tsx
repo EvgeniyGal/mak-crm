@@ -14,6 +14,9 @@ import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 import 'moment/locale/uk'
 import { useTranslation } from 'react-i18next'
+import { useOwner } from '@/lib/hooks/useOwner'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
 const DragAndDropCalendar = withDragAndDrop(BigCalendar)
 
@@ -69,6 +72,7 @@ interface Teacher {
 export default function SchedulesPage() {
   const supabase = createClient()
   const { t } = useTranslation()
+  const { isOwner } = useOwner()
   
   const weekDays = [
     t('schedules.sunday'),
@@ -583,6 +587,40 @@ export default function SchedulesPage() {
     }
   }
 
+  const getWeekDayName = (weekDay: number) => {
+    return weekDays[weekDay] || ''
+  }
+
+  const getRoomName = (roomId: string | null) => {
+    if (!roomId) return '-'
+    const room = rooms.find(r => r.id === roomId)
+    return room ? room.name : roomId
+  }
+
+  const handleExportXLS = () => {
+    const columns: ExportColumn[] = [
+      { header: t('schedules.class'), accessor: (row) => row.classes?.name || '' },
+      { header: t('schedules.weekDay'), accessor: (row) => getWeekDayName(row.week_day) },
+      { header: t('schedules.startTime'), accessor: (row) => row.time_slot },
+      { header: t('schedules.endTime'), accessor: (row) => row.end_time || '' },
+      { header: t('schedules.room'), accessor: (row) => row.classes?.rooms?.name || getRoomName(row.classes?.room_id || null) },
+      { header: t('schedules.teacher'), accessor: (row) => row.classes?.teachers_ids ? getTeacherNames(row.classes.teachers_ids) : '' },
+    ]
+    exportToXLS(schedules, columns, 'schedules')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn[] = [
+      { header: t('schedules.class'), accessor: (row) => row.classes?.name || '' },
+      { header: t('schedules.weekDay'), accessor: (row) => getWeekDayName(row.week_day) },
+      { header: t('schedules.startTime'), accessor: (row) => row.time_slot },
+      { header: t('schedules.endTime'), accessor: (row) => row.end_time || '' },
+      { header: t('schedules.room'), accessor: (row) => row.classes?.rooms?.name || getRoomName(row.classes?.room_id || null) },
+      { header: t('schedules.teacher'), accessor: (row) => row.classes?.teachers_ids ? getTeacherNames(row.classes.teachers_ids) : '' },
+    ]
+    exportToCSV(schedules, columns, 'schedules')
+  }
+
   if (loading) {
     return <div className="p-8 text-gray-900">{t('common.loading')}</div>
   }
@@ -592,6 +630,13 @@ export default function SchedulesPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('schedules.title')}</h1>
         <div className="flex gap-2">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={schedules.length === 0}
+            />
+          )}
           <Button
             variant={view === 'list' ? 'default' : 'outline'}
             onClick={() => setView('list')}
