@@ -58,7 +58,6 @@ export default function AttendancesPage() {
   const [stats, setStats] = useState<AttendanceStats>({})
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [editingAttendance, setEditingAttendance] = useState<Attendance | null>(null)
   const [selectedClassStudents, setSelectedClassStudents] = useState<Student[]>([])
   const [studentAvailableLessons, setStudentAvailableLessons] = useState<Record<string, number>>({})
@@ -73,7 +72,6 @@ export default function AttendancesPage() {
   })
   const [classPackageTypes, setClassPackageTypes] = useState<Array<{ id: string; name: string; lesson_count: number }>>([])
   const [studentPresences, setStudentPresences] = useState<Record<string, { status: string; comment: string }>>({})
-  const [studentNeedingPayment, setStudentNeedingPayment] = useState<Student | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [classFilter, setClassFilter] = useState<string>('all')
   const [dateRangeStart, setDateRangeStart] = useState('')
@@ -731,7 +729,7 @@ export default function AttendancesPage() {
                                 .from('package_types')
                                 .select('id, name, lesson_count')
                                 .eq('class_id', formData.class_id)
-                              setClassPackageTypes((data as any[])?.map(pt => ({ id: pt.id, name: pt.name, lesson_count: (pt as any).lesson_count })) || [])
+                              setClassPackageTypes((data as { id: string; name: string; lesson_count: number }[] | null)?.map(pt => ({ id: pt.id, name: pt.name, lesson_count: pt.lesson_count })) || [])
                             } catch {
                               setClassPackageTypes([])
                             }
@@ -810,7 +808,8 @@ export default function AttendancesPage() {
               const latest = await getLatestPaymentForClass(paymentForm.student_id, paymentForm.class_id)
               setStudentAvailableLessons(prev => ({ ...prev, [paymentForm.student_id]: latest?.available_lesson_count ?? 0 }))
               setCreatePaymentModalOpen(false)
-            } catch (err) {
+            } catch (error) {
+              console.error('Error creating payment:', error)
               alert('Помилка створення платежу')
             }
           }}

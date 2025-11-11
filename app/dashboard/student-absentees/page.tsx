@@ -161,7 +161,7 @@ export default function StudentAbsenteesPage() {
               // Some records may store literal class names; include them if not UUID-like
               return isUUIDLike(raw) ? null : raw
             })
-            .filter((name): name is string => Boolean(name))
+            .filter((name: string | null): name is string => Boolean(name))
 
           absenteeList.push({
             ...student,

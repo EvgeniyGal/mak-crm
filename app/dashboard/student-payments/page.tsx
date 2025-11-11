@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
 import { Search, Plus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -34,7 +33,6 @@ interface PackageType {
 
 export default function StudentPaymentsPage() {
   const supabase = createClient()
-  const router = useRouter()
   const { t } = useTranslation()
   const tt = (key: string, fallback: string) => {
     const v = t(key)
@@ -170,8 +168,8 @@ export default function StudentPaymentsPage() {
     fetchData()
   }, [fetchData])
 
-  const availablePackageTypes = formData.class_id
-    ? (packageTypes as any[]).filter(pt => (pt as any).class_id === formData.class_id)
+  const availablePackageTypes: PackageType[] = formData.class_id
+    ? packageTypes.filter(pt => pt.class_id === formData.class_id)
     : []
 
   const handleClassChange = (classId: string) => {
@@ -184,12 +182,12 @@ export default function StudentPaymentsPage() {
   }
 
   const handlePackageTypeChange = (packageTypeId: string) => {
-    const pkg = (packageTypes as any[]).find(pt => pt.id === packageTypeId)
+    const pkg = packageTypes.find(pt => pt.id === packageTypeId)
     if (pkg) {
       setFormData({
         ...formData,
         package_type_id: packageTypeId,
-        available_lesson_count: (pkg as any).lesson_count || 0,
+        available_lesson_count: pkg.lesson_count || 0,
       })
     } else {
       setFormData({
@@ -386,7 +384,7 @@ export default function StudentPaymentsPage() {
                     {tt('payments.noPackagesForClass', 'Немає пакетів для вибраного класу')}
                   </option>
                 )}
-                {availablePackageTypes.map((pt: any) => (
+                {availablePackageTypes.map((pt) => (
                   <option key={pt.id} value={pt.id}>{pt.name}</option>
                 ))}
               </Select>
