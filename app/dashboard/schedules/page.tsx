@@ -95,6 +95,7 @@ export default function SchedulesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [view, setView] = useState<'list' | 'calendar'>('calendar')
+  const [roomFilter, setRoomFilter] = useState<string>('')
 
   const [formData, setFormData] = useState({
     class_id: '',
@@ -165,6 +166,14 @@ export default function SchedulesPage() {
 
   // Generate events for multiple weeks so calendar navigation works
   const events = useMemo(() => {
+    // Apply room filter if selected
+    const filteredSchedules = roomFilter
+      ? schedules.filter((s) => {
+          const scheduleClass = classes.find((c) => c.id === s.class_id)
+          return scheduleClass?.room_id === roomFilter
+        })
+      : schedules
+
     const eventsList: (EventWithId & { resource: Schedule })[] = []
     const currentDate = moment()
     // Ensure we start from Sunday (0) not Monday
@@ -172,7 +181,7 @@ export default function SchedulesPage() {
     const startOfVisibleWeek = currentDate.clone().startOf('isoWeek').subtract(1, 'day').subtract(8, 'weeks')
     const endOfVisibleWeek = startOfVisibleWeek.clone().add(16, 'weeks') // Show 16 weeks total
     
-    schedules.forEach((schedule) => {
+    filteredSchedules.forEach((schedule) => {
       const startTime = moment(schedule.time_slot, 'HH:mm:ss')
       const endTime = schedule.end_time 
         ? moment(schedule.end_time, 'HH:mm:ss')
@@ -205,7 +214,7 @@ export default function SchedulesPage() {
     })
     
                      return eventsList
-     }, [schedules, t])
+     }, [schedules, classes, roomFilter, t])
 
   const checkConflicts = useCallback(() => {
     if (!formData.class_id || !formData.start_time || formData.week_day === undefined) {
@@ -658,7 +667,19 @@ export default function SchedulesPage() {
       </div>
 
       {view === 'calendar' ? (
-        <div className="bg-white rounded-lg shadow p-4" style={{ height: '700px' }}>
+        <>
+          <div className="flex items-center gap-4 mb-4">
+            <label className="text-sm text-gray-700">{t('schedules.room')}:</label>
+            <div className="w-64">
+              <Select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)}>
+                <option value="">{t('schedules.allRooms')}</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>{room.name}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4" style={{ height: '700px' }}>
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
@@ -670,6 +691,8 @@ export default function SchedulesPage() {
             defaultView="week"
             defaultDate={new Date()} // Set to current date
             culture="uk" // Use Ukrainian culture
+            min={(() => { const d = new Date(); d.setHours(7, 0, 0, 0); return d })()}
+            max={(() => { const d = new Date(); d.setHours(21, 0, 0, 0); return d })()}
             onEventDrop={handleEventDrop as (args: { event: object; start: Date | string; end: Date | string }) => void}
             onEventResize={handleEventResize as (args: { event: object; start: Date | string; end: Date | string }) => void}
             onSelectSlot={handleSelectSlot}
@@ -690,7 +713,8 @@ export default function SchedulesPage() {
             onSelectEvent={(event: EventWithId) => handleEdit((event as EventWithId & { resource: Schedule }).resource)}
             popup
           />
-        </div>
+          </div>
+        </>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">

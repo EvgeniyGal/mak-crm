@@ -61,6 +61,17 @@ export default function AttendancesPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [editingAttendance, setEditingAttendance] = useState<Attendance | null>(null)
   const [selectedClassStudents, setSelectedClassStudents] = useState<Student[]>([])
+  const [studentAvailableLessons, setStudentAvailableLessons] = useState<Record<string, number>>({})
+  const [createPaymentModalOpen, setCreatePaymentModalOpen] = useState(false)
+  const [paymentForm, setPaymentForm] = useState<{ student_id: string; class_id: string; package_type_id: string; status: string; type: string; available_lesson_count: number }>({
+    student_id: '',
+    class_id: '',
+    package_type_id: '',
+    status: 'paid',
+    type: 'cash',
+    available_lesson_count: 0,
+  })
+  const [classPackageTypes, setClassPackageTypes] = useState<Array<{ id: string; name: string; lesson_count: number }>>([])
   const [studentPresences, setStudentPresences] = useState<Record<string, { status: string; comment: string }>>({})
   const [studentNeedingPayment, setStudentNeedingPayment] = useState<Student | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -178,13 +189,30 @@ export default function AttendancesPage() {
         .select('id, available_lesson_count, student_presence_ids')
         .eq('student_id', studentId)
         .eq('status', 'paid')
-        .gt('available_lesson_count', 0)
+        // Do not filter by available_lesson_count here; caller can decide
         .order('created_at', { ascending: false })
         .limit(1)
         .single()
 
       if (error || !data) return null
       return data
+    } catch {
+      return null
+    }
+  }
+
+  const getLatestPaymentForClass = async (studentId: string, classId: string) => {
+    try {
+      const { data } = await supabase
+        .from('payments')
+        .select('id, available_lesson_count')
+        .eq('student_id', studentId)
+        .eq('class_id', classId)
+        .eq('status', 'paid')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      return data || null
     } catch {
       return null
     }
@@ -197,17 +225,15 @@ export default function AttendancesPage() {
     const classStudents = students.filter(s => selectedClass.student_ids.includes(s.id))
     setSelectedClassStudents(classStudents)
 
-    // Check payments for all students
+    // Fetch available lessons per student for this class and initialize presences
     const presences: Record<string, { status: string; comment: string }> = {}
+    const lessonsMap: Record<string, number> = {}
     for (const student of classStudents) {
-      const payment = await checkStudentPayment(student.id)
-      if (!payment || payment.available_lesson_count < 1) {
-        setStudentNeedingPayment(student)
-        setPaymentModalOpen(true)
-        return
-      }
+      const payment = await getLatestPaymentForClass(student.id, classId)
+      lessonsMap[student.id] = payment?.available_lesson_count ?? 0
       presences[student.id] = { status: 'present', comment: '' }
     }
+    setStudentAvailableLessons(lessonsMap)
     setStudentPresences(presences)
   }
 
@@ -663,53 +689,96 @@ export default function AttendancesPage() {
             </div>
           </div>
 
-          {selectedClassStudents.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('attendances.students')}
-              </label>
-              <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-4">
-                {selectedClassStudents.map((student) => (
-                  <div key={student.id} className="flex items-center gap-4 p-2 border-b">
-                    <div className="flex-1">
-                      <p className="font-medium">{student.student_first_name} {student.student_last_name}</p>
+        {selectedClassStudents.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {t('attendances.students')}
+            </label>
+            <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-4">
+              {selectedClassStudents.map((student) => (
+                <div key={student.id} className="flex items-center gap-4 p-2 border-b">
+                  <div className="flex-1">
+                    <p className="font-medium">{student.student_first_name} {student.student_last_name}</p>
+                    <div className="mt-1 text-sm">
+                      <span className={`inline-block px-2 py-0.5 rounded ${
+                        (studentAvailableLessons[student.id] ?? 0) === 0
+                          ? 'bg-red-100 text-red-800'
+                          : (studentAvailableLessons[student.id] ?? 0) <= 3
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                      }`}>
+                        {t('payments.availableLessons')}: {studentAvailableLessons[student.id] ?? 0}
+                      </span>
+                      {(studentAvailableLessons[student.id] ?? 0) < 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                          onClick={async () => {
+                            // Prefill payment form for this student and selected class
+                            setPaymentForm({
+                              student_id: student.id,
+                              class_id: formData.class_id,
+                              package_type_id: '',
+                              status: 'paid',
+                              type: 'cash',
+                              available_lesson_count: 0,
+                            })
+                            // Load package types for selected class
+                            try {
+                              const { data } = await supabase
+                                .from('package_types')
+                                .select('id, name, lesson_count')
+                                .eq('class_id', formData.class_id)
+                              setClassPackageTypes((data as any[])?.map(pt => ({ id: pt.id, name: pt.name, lesson_count: (pt as any).lesson_count })) || [])
+                            } catch {
+                              setClassPackageTypes([])
+                            }
+                            setCreatePaymentModalOpen(true)
+                          }}
+                        >
+                          {t('payments.addPayment')}
+                        </Button>
+                      )}
                     </div>
-                    <Select
-                      value={studentPresences[student.id]?.status || 'present'}
-                      onChange={(e) => {
-                        setStudentPresences({
-                          ...studentPresences,
-                          [student.id]: {
-                            ...studentPresences[student.id],
-                            status: e.target.value,
-                          },
-                        })
-                      }}
-                      className="w-48"
-                    >
-                      <option value="present">{t('attendances.present')}</option>
-                      <option value="absent">{t('attendances.absent')}</option>
-                      <option value="absent with valid reason">{t('attendances.absentValidReason')}</option>
-                    </Select>
-                    <Input
-                      placeholder={t('attendances.comment')}
-                      value={studentPresences[student.id]?.comment || ''}
-                      onChange={(e) => {
-                        setStudentPresences({
-                          ...studentPresences,
-                          [student.id]: {
-                            ...studentPresences[student.id],
-                            comment: e.target.value,
-                          },
-                        })
-                      }}
-                      className="w-48"
-                    />
                   </div>
-                ))}
-              </div>
+                  <Select
+                    value={studentPresences[student.id]?.status || 'present'}
+                    onChange={(e) => {
+                      setStudentPresences({
+                        ...studentPresences,
+                        [student.id]: {
+                          ...studentPresences[student.id],
+                          status: e.target.value,
+                        },
+                      })
+                    }}
+                    className="w-48"
+                  >
+                    <option value="present">{t('attendances.present')}</option>
+                    <option value="absent">{t('attendances.absent')}</option>
+                    <option value="absent with valid reason">{t('attendances.absentValidReason')}</option>
+                  </Select>
+                  <Input
+                    placeholder={t('attendances.comment')}
+                    value={studentPresences[student.id]?.comment || ''}
+                    onChange={(e) => {
+                      setStudentPresences({
+                        ...studentPresences,
+                        [student.id]: {
+                          ...studentPresences[student.id],
+                          comment: e.target.value,
+                        },
+                      })
+                    }}
+                    className="w-48"
+                  />
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
@@ -722,29 +791,103 @@ export default function AttendancesPage() {
         </form>
       </Modal>
 
-      {/* Payment Required Modal */}
+      {/* Create Payment Modal */}
       <Modal
-        isOpen={paymentModalOpen}
-        onClose={() => setPaymentModalOpen(false)}
-        title="Потрібен платіж"
-        size="md"
+        isOpen={createPaymentModalOpen}
+        onClose={() => setCreatePaymentModalOpen(false)}
+        title={t('payments.addPayment')}
+        size="lg"
       >
-        <div className="space-y-4">
-          <p>
-            Студент {studentNeedingPayment?.student_first_name} {studentNeedingPayment?.student_last_name} не має активного платежу з доступними уроками.
-          </p>
-          <p className="text-sm text-gray-600">
-            Будь ласка, створіть платіж для цього студента перед відміткою відвідуваності.
-          </p>
-          <div className="flex justify-end">
-            <Button onClick={() => {
-              setPaymentModalOpen(false)
-              window.location.href = '/dashboard/payments'
-            }}>
-              Перейти до платежів
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            try {
+              const { error } = await supabase
+                .from('payments')
+                .insert([paymentForm])
+              if (error) throw error
+              // Refresh lessons map for the student
+              const latest = await getLatestPaymentForClass(paymentForm.student_id, paymentForm.class_id)
+              setStudentAvailableLessons(prev => ({ ...prev, [paymentForm.student_id]: latest?.available_lesson_count ?? 0 }))
+              setCreatePaymentModalOpen(false)
+            } catch (err) {
+              alert('Помилка створення платежу')
+            }
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.student')}</label>
+              <Select value={paymentForm.student_id} disabled>
+                <option value="{paymentForm.student_id}">
+                  {students.find(s => s.id === paymentForm.student_id)?.student_first_name} {students.find(s => s.id === paymentForm.student_id)?.student_last_name}
+                </option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.class')}</label>
+              <Select value={paymentForm.class_id} disabled>
+                <option value="{paymentForm.class_id}">{classes.find(c => c.id === paymentForm.class_id)?.name}</option>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.packageType')}</label>
+              <Select
+                value={paymentForm.package_type_id}
+                onChange={(e) => {
+                  const pkg = classPackageTypes.find(pt => pt.id === e.target.value)
+                  setPaymentForm({
+                    ...paymentForm,
+                    package_type_id: e.target.value,
+                    available_lesson_count: pkg?.lesson_count ?? 0,
+                  })
+                }}
+              >
+                <option value="">{t('payments.selectPackageType')}</option>
+                {classPackageTypes.length === 0 && (
+                  <option value="" disabled>
+                    {t('payments.selectClassFirst')}
+                  </option>
+                )}
+                {classPackageTypes.map(pt => (
+                  <option key={pt.id} value={pt.id}>{pt.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.availableLessons')}</label>
+              <Input type="number" value={paymentForm.available_lesson_count} readOnly disabled />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.status')}</label>
+              <Select value={paymentForm.status} onChange={(e) => setPaymentForm({ ...paymentForm, status: e.target.value })}>
+                <option value="paid">{t('payments.paid')}</option>
+                <option value="pending">{t('payments.pending')}</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.paymentType')}</label>
+              <Select value={paymentForm.type} onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}>
+                <option value="cash">{t('payments.cash')}</option>
+                <option value="card">{t('payments.card')}</option>
+                <option value="test">{t('payments.test')}</option>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setCreatePaymentModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={!paymentForm.student_id || !paymentForm.class_id || !paymentForm.package_type_id}>
+              {t('payments.addPayment')}
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   )

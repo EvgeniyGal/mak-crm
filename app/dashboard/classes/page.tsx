@@ -561,9 +561,6 @@ export default function ClassesPage() {
                   {t('classes.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.createdAt')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('common.actions')}
                 </th>
               </tr>
@@ -605,9 +602,6 @@ export default function ClassesPage() {
                       }`}>
                         {classItem.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(classItem.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

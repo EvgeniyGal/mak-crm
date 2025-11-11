@@ -58,6 +58,10 @@ export default function StudentAbsenteesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
 
+  // Helper to detect UUID-like strings (to avoid rendering raw IDs)
+  const isUUIDLike = (str: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -151,8 +155,13 @@ export default function StudentAbsenteesPage() {
         // Only include if student has absences or never attended
         if (totalAbsences > 0 || !hasAnyPresence) {
           const enrolledClasses = enrolledClassIds
-            .map((id: string) => classes.find(c => c.id === id)?.name || id)
-            .filter((name: string) => name !== undefined)
+            .map((raw: string) => {
+              const match = classes.find(c => c.id === raw)
+              if (match) return match.name
+              // Some records may store literal class names; include them if not UUID-like
+              return isUUIDLike(raw) ? null : raw
+            })
+            .filter((name): name is string => Boolean(name))
 
           absenteeList.push({
             ...student,

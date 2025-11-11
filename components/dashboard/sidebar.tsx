@@ -47,17 +47,11 @@ type TranslationFunction = (key: string) => string
 // Menu items will be generated with translations
 const getMenuItems = (t: TranslationFunction): MenuItem[] => [
   { href: '/dashboard', label: t('dashboard.home'), icon: Home },
-  {
-    label: t('dashboard.students'),
-    icon: Users,
-    children: [
-      { href: '/dashboard/students', label: t('dashboard.studentList'), icon: Users },
-      { href: '/dashboard/student-absentees', label: t('dashboard.studentAbsentees'), icon: UserCheck },
-      { href: '/dashboard/student-payments', label: t('dashboard.studentPayments'), icon: CreditCard },
-      { href: '/dashboard/attendances', label: t('dashboard.attendances'), icon: ClipboardCheck },
-      { href: '/dashboard/class-attendances', label: t('dashboard.classAttendances'), icon: Calendar },
-    ],
-  },
+  { href: '/dashboard/students', label: t('dashboard.studentList'), icon: Users },
+  { href: '/dashboard/student-absentees', label: t('dashboard.studentAbsentees'), icon: UserCheck },
+  { href: '/dashboard/student-payments', label: t('dashboard.studentPayments'), icon: CreditCard },
+  { href: '/dashboard/attendances', label: t('dashboard.attendances'), icon: ClipboardCheck },
+  { href: '/dashboard/class-attendances', label: t('dashboard.classAttendances'), icon: Calendar },
   { href: '/dashboard/teachers', label: t('dashboard.teachers'), icon: GraduationCap },
   { href: '/dashboard/classes', label: t('dashboard.classes'), icon: Users },
   { href: '/dashboard/schedules', label: t('dashboard.schedules'), icon: Clock },
@@ -263,7 +257,9 @@ export function Sidebar() {
     if (!item.href) return null
     
     const Icon = item.icon
-    const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+    const isActive = item.href === '/dashboard'
+      ? pathname === item.href
+      : (pathname === item.href || pathname.startsWith(item.href + '/'))
     
     return (
       <Link
@@ -285,7 +281,28 @@ export function Sidebar() {
   return (
     <div className="w-64 bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
       <div className="p-4 pb-4 flex-shrink-0">
-        <h1 className="text-2xl font-bold">MAK CRM</h1>
+        <div className="flex flex-col items-center justify-center gap-2 w-full">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="48"
+            height="48"
+            viewBox="0 0 64 64"
+            aria-hidden="true"
+          >
+            <text
+              x="50%"
+              y="50%"
+              dominantBaseline="middle"
+              textAnchor="middle"
+              fontFamily="Arial, Helvetica, sans-serif"
+              fontSize="32"
+              fontWeight="700"
+              fill="#ffffff"
+            >
+              MAK
+            </text>
+          </svg>
+        </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-4 space-y-1">
         {visibleItems.map((item) => renderMenuItem(item))}

@@ -6,22 +6,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function calculateAge(dateOfBirth: Date | string): string {
+  // Kept for backward compatibility in places that expect a string label
+  const years = ageInYears(dateOfBirth)
+  return `${years.toFixed(1)} years`
+}
+
+export function ageInYears(dateOfBirth: Date | string): number {
   const dob = typeof dateOfBirth === 'string' ? new Date(dateOfBirth) : dateOfBirth
-  const today = new Date()
-  const years = today.getFullYear() - dob.getFullYear()
-  const months = today.getMonth() - dob.getMonth()
-  const days = today.getDate() - dob.getDate()
-  
-  let totalMonths = years * 12 + months
-  if (days < 0) totalMonths -= 1
-  
-  const yearsPart = Math.floor(totalMonths / 12)
-  const monthsPart = totalMonths % 12
-  
-  if (yearsPart === 0) {
-    return `${(monthsPart / 10).toFixed(1)} years`
-  }
-  return `${yearsPart}.${Math.floor(monthsPart / 1.2)} years`
+  const now = new Date()
+  const diffMs = now.getTime() - dob.getTime()
+  const years = diffMs / (365.2425 * 24 * 60 * 60 * 1000)
+  return Math.max(0, Math.round(years * 10) / 10)
 }
 
 export function formatDate(date: Date | string | null): string {

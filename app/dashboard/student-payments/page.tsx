@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -27,15 +28,23 @@ interface PaymentData {
 interface PackageType {
   id: string
   name: string
+  lesson_count?: number
+  class_id?: string
 }
 
 export default function StudentPaymentsPage() {
   const supabase = createClient()
   const router = useRouter()
   const { t } = useTranslation()
+  const tt = (key: string, fallback: string) => {
+    const v = t(key)
+    return v === key ? fallback : v
+  }
   const { isOwner } = useOwner()
   const [payments, setPayments] = useState<PaymentData[]>([])
   const [packageTypes, setPackageTypes] = useState<PackageType[]>([])
+  const [students, setStudents] = useState<{ id: string; student_first_name: string; student_last_name: string }[]>([])
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [packageFilter, setPackageFilter] = useState<string>('all')
@@ -48,6 +57,17 @@ export default function StudentPaymentsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
 
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    student_id: '',
+    class_id: '',
+    package_type_id: '',
+    status: 'pending',
+    type: 'cash',
+    available_lesson_count: 0,
+  })
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
@@ -58,15 +78,25 @@ export default function StudentPaymentsPage() {
         .eq('status', 'active')
 
       if (studentsError) throw studentsError
+      setStudents(students || [])
 
       // Get package types for filtering
       const { data: packages, error: packagesError } = await supabase
         .from('package_types')
-        .select('id, name')
+        .select('id, name, lesson_count, class_id')
         .eq('status', 'active')
 
       if (packagesError) throw packagesError
       setPackageTypes(packages || [])
+
+      // Get classes for selection
+      const { data: classesData, error: classesError } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('status', 'active')
+
+      if (classesError) throw classesError
+      setClasses(classesData || [])
 
       // Get all payments for active students
       const { data: paymentsData, error: paymentsError } = await supabase
@@ -139,6 +169,72 @@ export default function StudentPaymentsPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  const availablePackageTypes = formData.class_id
+    ? (packageTypes as any[]).filter(pt => (pt as any).class_id === formData.class_id)
+    : []
+
+  const handleClassChange = (classId: string) => {
+    setFormData({
+      ...formData,
+      class_id: classId,
+      package_type_id: '',
+      available_lesson_count: 0,
+    })
+  }
+
+  const handlePackageTypeChange = (packageTypeId: string) => {
+    const pkg = (packageTypes as any[]).find(pt => pt.id === packageTypeId)
+    if (pkg) {
+      setFormData({
+        ...formData,
+        package_type_id: packageTypeId,
+        available_lesson_count: (pkg as any).lesson_count || 0,
+      })
+    } else {
+      setFormData({
+        ...formData,
+        package_type_id: packageTypeId,
+      })
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      student_id: '',
+      class_id: '',
+      package_type_id: '',
+      status: 'pending',
+      type: 'cash',
+      available_lesson_count: 0,
+    })
+    setEditingPaymentId(null)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      if (editingPaymentId) {
+        const { error } = await supabase
+          .from('payments')
+          .update(formData)
+          .eq('id', editingPaymentId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('payments')
+          .insert([formData])
+        if (error) throw error
+      }
+
+      await fetchData()
+      setIsModalOpen(false)
+      resetForm()
+    } catch (error) {
+      console.error('Error saving payment:', error)
+      alert(t('payments.errorSaving') || 'Помилка збереження платежу')
+    }
+  }
 
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
@@ -241,6 +337,104 @@ export default function StudentPaymentsPage() {
 
   return (
     <div className="p-8">
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); resetForm() }}
+        title={tt('payments.addPayment', 'Додати платіж')}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('payments.student', 'Студент')}</label>
+              <Select
+                value={formData.student_id}
+                onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+              >
+                <option value="">{tt('common.select', 'Виберіть...')}</option>
+                {students.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.student_first_name} {s.student_last_name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('payments.class', 'Клас')}</label>
+              <Select
+                value={formData.class_id}
+                onChange={(e) => handleClassChange(e.target.value)}
+              >
+                <option value="">{tt('common.select', 'Виберіть...')}</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('payments.packageType', 'Тип пакету')}</label>
+              <Select
+                value={formData.package_type_id}
+                onChange={(e) => handlePackageTypeChange(e.target.value)}
+                disabled={!formData.class_id}
+              >
+                <option value="">{tt('common.select', 'Виберіть...')}</option>
+                {formData.class_id && availablePackageTypes.length === 0 && (
+                  <option value="" disabled>
+                    {tt('payments.noPackagesForClass', 'Немає пакетів для вибраного класу')}
+                  </option>
+                )}
+                {availablePackageTypes.map((pt: any) => (
+                  <option key={pt.id} value={pt.id}>{pt.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('payments.availableLessons', 'Доступні уроки')}</label>
+              <Input
+                type="number"
+                value={formData.available_lesson_count}
+                min={0}
+                readOnly
+                disabled
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('common.status', 'Статус')}</label>
+              <Select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              >
+                <option value="pending">{tt('common.pending', 'Очікує')}</option>
+                <option value="approved">{tt('common.approved', 'Підтверджено')}</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('payments.paymentType', 'Тип платежу')}</label>
+              <Select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              >
+                <option value="cash">{tt('common.cash', 'Готівка')}</option>
+                <option value="card">{tt('common.card', 'Картка')}</option>
+                <option value="test">{tt('common.test', 'Тестовий')}</option>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
+              {tt('common.cancel', 'Скасувати')}
+            </Button>
+            <Button type="submit">
+              {editingPaymentId ? tt('payments.updatePayment', 'Оновити платіж') : tt('payments.createPayment', 'Створити платіж')}
+            </Button>
+          </div>
+        </form>
+      </Modal>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">{t('studentPayments.title')}</h1>
         <div className="flex gap-2">
@@ -251,7 +445,7 @@ export default function StudentPaymentsPage() {
               disabled={sortedPayments.length === 0}
             />
           )}
-          <Button onClick={() => router.push('/dashboard/payments')}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
             <Plus className="h-4 w-4 mr-2" />
             {t('payments.addPayment')}
           </Button>
@@ -404,7 +598,14 @@ export default function StudentPaymentsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.push(`/dashboard/payments?student=${payment.student_id}`)}
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            student_id: payment.student_id,
+                          }))
+                          setEditingPaymentId(payment.payment_id || null)
+                          setIsModalOpen(true)
+                        }}
                       >
                         Створити/Оновити платіж
                       </Button>
@@ -459,3 +660,6 @@ export default function StudentPaymentsPage() {
     </div>
   )
 }
+
+// Modal form rendered at the end to keep JSX tidy
+// Note: Rendering inside the same component return for clarity

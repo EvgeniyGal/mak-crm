@@ -208,9 +208,6 @@ export default function RoomsPage() {
                   {t('rooms.classes')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.createdAt')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('common.actions')}
                 </th>
               </tr>
@@ -230,9 +227,6 @@ export default function RoomsPage() {
                       {assignedClasses.length > 0
                         ? assignedClasses.map(c => c.name).join(', ')
                         : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(room.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

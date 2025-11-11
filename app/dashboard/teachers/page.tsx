@@ -306,9 +306,6 @@ export default function TeachersPage() {
                   {t('teachers.comment')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.createdAt')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('common.actions')}
                 </th>
               </tr>
@@ -344,9 +341,6 @@ export default function TeachersPage() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                     {teacher.comment || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(teacher.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button

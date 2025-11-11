@@ -5,6 +5,9 @@ import { I18nProvider } from '@/components/i18n-provider'
 export const metadata: Metadata = {
   title: 'MAK CRM',
   description: 'Comprehensive CRM system for educational centres',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

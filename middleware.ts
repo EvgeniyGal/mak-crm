@@ -2,6 +2,13 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Avoid noisy aborted fetch errors by skipping redirects on prefetch requests
+  // Next.js sets `x-middleware-prefetch` for link prefetch/background router requests.
+  const isPrefetch = request.headers.get('x-middleware-prefetch') === '1'
+  if (isPrefetch) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,

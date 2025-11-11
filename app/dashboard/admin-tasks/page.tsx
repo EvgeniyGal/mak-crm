@@ -221,7 +221,7 @@ export default function AdminTasksPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за назвою або коментарем..."
+              placeholder={t('adminTasks.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -257,7 +257,7 @@ export default function AdminTasksPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('adminTasks.titleColumn')}
+                  {t('adminTasks.titleLabel')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('adminTasks.type')}

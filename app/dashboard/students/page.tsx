@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { calculateAge, formatDate } from '@/lib/utils'
+import { ageInYears, formatDate } from '@/lib/utils'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
@@ -56,6 +56,8 @@ export default function StudentsPage() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [minAge, setMinAge] = useState<string>('')
+  const [maxAge, setMaxAge] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [sortBy, setSortBy] = useState<string>('created_at')
@@ -319,7 +321,12 @@ export default function StudentsPage() {
 
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    const age = ageInYears(student.student_date_of_birth)
+    const matchesAgeRange =
+      (minAge === '' || (!isNaN(parseFloat(minAge)) && age >= parseFloat(minAge))) &&
+      (maxAge === '' || (!isNaN(parseFloat(maxAge)) && age <= parseFloat(maxAge)))
+
+    return matchesSearch && matchesStatus && matchesAgeRange
   })
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -363,7 +370,7 @@ export default function StudentsPage() {
       { header: t('students.studentName'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
       { header: t('students.lastName'), accessor: (row) => row.student_last_name },
       { header: t('students.dateOfBirth'), accessor: (row) => formatDate(row.student_date_of_birth) },
-      { header: t('students.age'), accessor: (row) => calculateAge(row.student_date_of_birth) },
+      { header: t('students.age'), accessor: (row) => ageInYears(row.student_date_of_birth).toFixed(1) },
       { header: t('students.parentName'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
       { header: t('students.phone'), accessor: (row) => row.phone },
       { header: t('students.email'), accessor: (row) => row.email || '' },
@@ -379,7 +386,7 @@ export default function StudentsPage() {
       { header: t('students.studentName'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
       { header: t('students.lastName'), accessor: (row) => row.student_last_name },
       { header: t('students.dateOfBirth'), accessor: (row) => formatDate(row.student_date_of_birth) },
-      { header: t('students.age'), accessor: (row) => calculateAge(row.student_date_of_birth) },
+      { header: t('students.age'), accessor: (row) => ageInYears(row.student_date_of_birth).toFixed(1) },
       { header: t('students.parentName'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
       { header: t('students.phone'), accessor: (row) => row.phone },
       { header: t('students.email'), accessor: (row) => row.email || '' },
@@ -432,6 +439,26 @@ export default function StudentsPage() {
             <option value="moved">{t('common.moved')}</option>
             <option value="don't disturb">{t('common.dontDisturb')}</option>
           </Select>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">{t('students.age')}:</label>
+            <Input
+              type="number"
+              step="0.1"
+              placeholder={t('common.from')}
+              value={minAge}
+              onChange={(e) => setMinAge(e.target.value)}
+              className="w-24"
+            />
+            <span className="text-sm">{t('common.to')}</span>
+            <Input
+              type="number"
+              step="0.1"
+              placeholder={t('common.to')}
+              value={maxAge}
+              onChange={(e) => setMaxAge(e.target.value)}
+              className="w-24"
+            />
+          </div>
         </div>
         <div className="flex gap-4 items-center">
           <label className="text-sm font-medium">{t('common.sortBy')}</label>
@@ -502,7 +529,7 @@ export default function StudentsPage() {
                     {student.student_first_name} {student.student_last_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {calculateAge(student.student_date_of_birth)}
+                    {ageInYears(student.student_date_of_birth).toFixed(1)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.parent_first_name} {student.parent_middle_name || ''}
@@ -525,9 +552,10 @@ export default function StudentsPage() {
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {student.enrolled_class_ids && Array.isArray(student.enrolled_class_ids) && student.enrolled_class_ids.length > 0
                       ? (() => {
+                          const looksLikeUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
                           const classNames = student.enrolled_class_ids
-                            .map(id => getClassName(id))
-                            .filter((name): name is string => name !== null && name !== undefined)
+                            .map(item => getClassName(item) ?? (looksLikeUUID(item) ? null : item))
+                            .filter((name): name is string => !!name)
                           return classNames.length > 0 ? classNames.join(', ') : '-'
                         })()
                       : '-'}
@@ -535,9 +563,10 @@ export default function StudentsPage() {
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {student.interested_class_ids && Array.isArray(student.interested_class_ids) && student.interested_class_ids.length > 0
                       ? (() => {
+                          const looksLikeUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
                           const classNames = student.interested_class_ids
-                            .map(id => getClassName(id))
-                            .filter((name): name is string => name !== null && name !== undefined)
+                            .map(item => getClassName(item) ?? (looksLikeUUID(item) ? null : item))
+                            .filter((name): name is string => !!name)
                           return classNames.length > 0 ? classNames.join(', ') : '-'
                         })()
                       : '-'}
