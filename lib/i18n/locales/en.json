@@ -368,7 +368,11 @@
     "confirmDelete": "Are you sure you want to delete this expenditure?",
     "searchPlaceholder": "Search by person or comment...",
     "person": "Person",
-    "type": "Type"
+    "type": "Type",
+    "comment": "Comment",
+    "typeRegular": "Regular",
+    "typeStaff": "Staff",
+    "typeTill": "Till"
   },
   "teacherSalaries": {
     "title": "Teacher Salaries",

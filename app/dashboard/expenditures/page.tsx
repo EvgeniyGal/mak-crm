@@ -89,7 +89,7 @@ export default function ExpendituresPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving expenditure:', error)
-      alert('Помилка збереження витрати')
+      alert(t('expenditures.errorSaving'))
     }
   }
 
@@ -105,7 +105,7 @@ export default function ExpendituresPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Ви впевнені, що хочете видалити цю витрату?')) return
+    if (!confirm(t('expenditures.confirmDelete'))) return
 
     try {
       const { error } = await supabase
@@ -116,7 +116,7 @@ export default function ExpendituresPage() {
       await fetchExpenditures()
     } catch (error) {
       console.error('Error deleting expenditure:', error)
-      alert('Помилка видалення витрати')
+      alert(t('expenditures.errorDeleting'))
     }
   }
 
@@ -150,34 +150,34 @@ export default function ExpendituresPage() {
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
-      { header: t('expenditures.type') || 'Тип', accessor: (row) => row.type },
-      { header: t('expenditures.person') || 'Особа', accessor: (row) => row.person || '' },
-      { header: t('expenditures.amount') || 'Сума', accessor: (row) => row.amount },
-      { header: t('expenditures.description') || 'Опис', accessor: (row) => row.comment || '' },
-      { header: t('expenditures.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
+      { header: t('expenditures.type'), accessor: (row) => row.type },
+      { header: t('expenditures.person'), accessor: (row) => row.person || '' },
+      { header: t('expenditures.amount'), accessor: (row) => row.amount },
+      { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
+      { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
     ]
     exportToXLS(filteredExpenditures, columns, 'expenditures')
   }
 
   const handleExportCSV = () => {
     const columns: ExportColumn[] = [
-      { header: t('expenditures.type') || 'Тип', accessor: (row) => row.type },
-      { header: t('expenditures.person') || 'Особа', accessor: (row) => row.person || '' },
-      { header: t('expenditures.amount') || 'Сума', accessor: (row) => row.amount },
-      { header: t('expenditures.description') || 'Опис', accessor: (row) => row.comment || '' },
-      { header: t('expenditures.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
+      { header: t('expenditures.type'), accessor: (row) => row.type },
+      { header: t('expenditures.person'), accessor: (row) => row.person || '' },
+      { header: t('expenditures.amount'), accessor: (row) => row.amount },
+      { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
+      { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
     ]
     exportToCSV(filteredExpenditures, columns, 'expenditures')
   }
 
   if (loading) {
-    return <div className="p-8">Завантаження...</div>
+    return <div className="p-8">{t('common.loading')}</div>
   }
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{t('expenditures.title') || 'Витрати'}</h1>
+        <h1 className="text-3xl font-bold">{t('expenditures.title')}</h1>
         <div className="flex gap-2">
           {isOwner && (
             <ExportButton 
@@ -188,7 +188,7 @@ export default function ExpendituresPage() {
           )}
           <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
             <Plus className="h-4 w-4 mr-2" />
-            {t('expenditures.addExpenditure') || 'Додати витрату'}
+            {t('expenditures.addExpenditure')}
           </Button>
         </div>
       </div>
@@ -199,7 +199,7 @@ export default function ExpendituresPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за особою або коментарем..."
+              placeholder={t('expenditures.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -210,10 +210,10 @@ export default function ExpendituresPage() {
             onChange={(e) => setTypeFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">Всі типи</option>
-            <option value="regular">Регулярні</option>
-            <option value="staff">Персонал</option>
-            <option value="till">Каса</option>
+            <option value="all">{t('common.allTypes')}</option>
+            <option value="regular">{t('expenditures.typeRegular')}</option>
+            <option value="staff">{t('expenditures.typeStaff')}</option>
+            <option value="till">{t('expenditures.typeTill')}</option>
           </Select>
         </div>
       </div>
@@ -225,22 +225,22 @@ export default function ExpendituresPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип
+                  {t('expenditures.type')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Особа
+                  {t('expenditures.person')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Сума
+                  {t('expenditures.amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Коментар
+                  {t('expenditures.comment')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('common.createdAt')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -253,14 +253,17 @@ export default function ExpendituresPage() {
                       expenditure.type === 'staff' ? 'bg-purple-100 text-purple-800' :
                       'bg-green-100 text-green-800'
                     }`}>
-                      {expenditure.type}
+                      {expenditure.type === 'regular' ? t('expenditures.typeRegular') :
+                       expenditure.type === 'staff' ? t('expenditures.typeStaff') :
+                       expenditure.type === 'till' ? t('expenditures.typeTill') :
+                       expenditure.type}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {expenditure.person || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {expenditure.amount.toFixed(2)} грн
+                    {expenditure.amount.toFixed(2)} {t('common.uah')}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                     {expenditure.comment || '-'}
@@ -291,7 +294,7 @@ export default function ExpendituresPage() {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
+            <label className="text-sm text-gray-700">{t('common.show')}</label>
             <Select
               value={itemsPerPage.toString()}
               onChange={(e) => {
@@ -305,7 +308,7 @@ export default function ExpendituresPage() {
               <option value="50">50</option>
             </Select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredExpenditures.length)} з {filteredExpenditures.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredExpenditures.length)} {t('common.of')} {filteredExpenditures.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -315,7 +318,7 @@ export default function ExpendituresPage() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Попередня
+              {t('common.previous')}
             </Button>
             <Button
               variant="outline"
@@ -323,7 +326,7 @@ export default function ExpendituresPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              Наступна
+              {t('common.next')}
             </Button>
           </div>
         </div>
@@ -333,27 +336,27 @@ export default function ExpendituresPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingExpenditure ? 'Редагувати витрату' : 'Додати витрату'}
+        title={editingExpenditure ? t('expenditures.editExpenditure') : t('expenditures.addExpenditure')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Тип *
+              {t('expenditures.type')} *
             </label>
             <Select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value })}
               required
             >
-              <option value="regular">Регулярні</option>
-              <option value="staff">Персонал</option>
-              <option value="till">Каса</option>
+              <option value="regular">{t('expenditures.typeRegular')}</option>
+              <option value="staff">{t('expenditures.typeStaff')}</option>
+              <option value="till">{t('expenditures.typeTill')}</option>
             </Select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Особа
+              {t('expenditures.person')}
             </label>
             <Input
               value={formData.person}
@@ -362,7 +365,7 @@ export default function ExpendituresPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Сума *
+              {t('expenditures.amount')} *
             </label>
             <Input
               type="number"
@@ -375,7 +378,7 @@ export default function ExpendituresPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Коментар
+              {t('expenditures.comment')}
             </label>
             <textarea
               value={formData.comment}
@@ -386,10 +389,10 @@ export default function ExpendituresPage() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
+              {t('common.cancel')}
             </Button>
             <Button type="submit">
-              {editingExpenditure ? 'Зберегти зміни' : 'Додати витрату'}
+              {editingExpenditure ? t('common.saveChanges') : t('expenditures.addExpenditure')}
             </Button>
           </div>
         </form>

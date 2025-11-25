@@ -367,7 +367,11 @@
     "confirmDelete": "Ви впевнені, що хочете видалити цю витрату?",
     "searchPlaceholder": "Пошук за особою або коментарем...",
     "person": "Особа",
-    "type": "Тип"
+    "type": "Тип",
+    "comment": "Коментар",
+    "typeRegular": "Регулярні",
+    "typeStaff": "Персонал",
+    "typeTill": "Каса"
   },
   "teacherSalaries": {
     "title": "Зарплати вчителів",
