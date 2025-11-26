@@ -6,8 +6,8 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { ageInYears, formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { formatAge, formatDate } from '@/lib/utils'
+import { Plus, Edit, Trash2, Search, FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -47,11 +47,25 @@ export default function StudentsPage() {
   const [classCapacities, setClassCapacities] = useState<Record<string, { available: number; total: number; isFull: boolean }>>({})
   const [, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false)
+  const [selectedStudentForSummary, setSelectedStudentForSummary] = useState<Student | null>(null)
+  const [studentSummary, setStudentSummary] = useState<{
+    attendances: Array<{ date: string; class_name: string; status: string }>
+    payments: Array<{ date: string; class_name: string; amount: number; status: string; type: string; available_lessons: number }>
+    firstLessonDate: string | null
+  } | null>(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [minAge, setMinAge] = useState<string>('')
-  const [maxAge, setMaxAge] = useState<string>('')
+  const [minAgeYears, setMinAgeYears] = useState<string>('')
+  const [minAgeMonths, setMinAgeMonths] = useState<string>('')
+  const [maxAgeYears, setMaxAgeYears] = useState<string>('')
+  const [maxAgeMonths, setMaxAgeMonths] = useState<string>('')
+  const [minAbsentee, setMinAbsentee] = useState<string>('')
+  const [maxAbsentee, setMaxAbsentee] = useState<string>('')
+  const [courseFilter, setCourseFilter] = useState<string>('all')
+  const [studentAbsences] = useState<Record<string, number>>({})
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [sortBy, setSortBy] = useState<string>('created_at')
@@ -264,6 +278,109 @@ export default function StudentsPage() {
     }
   }
 
+  const fetchStudentSummary = async (student: Student) => {
+    setLoadingSummary(true)
+    try {
+      // Fetch student presences
+      const { data: presences } = await supabase
+        .from('student_presences')
+        .select('status, attendance_id')
+        .eq('student_id', student.id)
+
+      const attendanceIds = presences?.map(p => p.attendance_id) || []
+
+      // Fetch attendances with course names
+      let attendances: Array<{ date: string; class_name: string; status: string }> = []
+      if (attendanceIds.length > 0) {
+        const { data: attendancesData } = await supabase
+          .from('attendances')
+          .select('id, date, class_id')
+          .in('id', attendanceIds)
+
+        if (attendancesData) {
+          // Get course names
+          const classIds = [...new Set(attendancesData.map(a => a.class_id))]
+          const { data: coursesData } = await supabase
+            .from('courses')
+            .select('id, name')
+            .in('id', classIds)
+
+          const coursesMap = new Map(coursesData?.map(c => [c.id, c.name]) || [])
+
+          // Combine data
+          attendances = attendancesData.map(attendance => {
+            const presence = presences?.find(p => p.attendance_id === attendance.id)
+            return {
+              date: attendance.date,
+              class_name: coursesMap.get(attendance.class_id) || '-',
+              status: presence?.status || 'unknown',
+            }
+          }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        }
+      }
+
+      // Fetch payments
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('created_at, status, type, available_lesson_count, class_id, package_type_id')
+        .eq('student_id', student.id)
+        .order('created_at', { ascending: false })
+
+      let paymentsData: Array<{ date: string; class_name: string; amount: number; status: string; type: string; available_lessons: number }> = []
+      if (payments && payments.length > 0) {
+        // Get course names and package amounts
+        const classIds = [...new Set(payments.map(p => p.class_id))]
+        const packageIds = [...new Set(payments.map(p => p.package_type_id).filter(Boolean))]
+
+        const { data: coursesData } = await supabase
+          .from('courses')
+          .select('id, name')
+          .in('id', classIds)
+
+        const { data: packagesData } = await supabase
+          .from('package_types')
+          .select('id, amount')
+          .in('id', packageIds)
+
+        const coursesMap = new Map(coursesData?.map(c => [c.id, c.name]) || [])
+        const packagesMap = new Map(packagesData?.map(p => [p.id, p.amount]) || [])
+
+        paymentsData = payments.map(p => ({
+          date: p.created_at,
+          class_name: coursesMap.get(p.class_id) || '-',
+          amount: packagesMap.get(p.package_type_id) || 0,
+          status: p.status,
+          type: p.type,
+          available_lessons: p.available_lesson_count,
+        }))
+      }
+
+      // Find first lesson date (earliest attendance)
+      const firstLessonDate = attendances.length > 0
+        ? attendances.reduce((earliest, curr) => 
+            new Date(curr.date) < new Date(earliest.date) ? curr : earliest
+          ).date
+        : null
+
+      setStudentSummary({
+        attendances,
+        payments: paymentsData,
+        firstLessonDate,
+      })
+    } catch (error) {
+      console.error('Error fetching student summary:', error)
+      alert('Помилка завантаження даних')
+    } finally {
+      setLoadingSummary(false)
+    }
+  }
+
+  const handleViewSummary = async (student: Student) => {
+    setSelectedStudentForSummary(student)
+    setIsSummaryModalOpen(true)
+    await fetchStudentSummary(student)
+  }
+
   const resetForm = () => {
     setFormData({
       student_first_name: '',
@@ -291,12 +408,48 @@ export default function StudentsPage() {
 
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter
 
-    const age = ageInYears(student.student_date_of_birth)
-    const matchesAgeRange =
-      (minAge === '' || (!isNaN(parseFloat(minAge)) && age >= parseFloat(minAge))) &&
-      (maxAge === '' || (!isNaN(parseFloat(maxAge)) && age <= parseFloat(maxAge)))
+    // Age filter - convert years and months to total months for comparison
+    const dob = new Date(student.student_date_of_birth)
+    const now = new Date()
+    let years = now.getFullYear() - dob.getFullYear()
+    let months = now.getMonth() - dob.getMonth()
+    if (months < 0) {
+      years--
+      months += 12
+    }
+    if (now.getDate() < dob.getDate()) {
+      months--
+      if (months < 0) {
+        years--
+        months += 12
+      }
+    }
+    const totalMonths = years * 12 + months
+    
+    const hasMinAge = minAgeYears !== '' || minAgeMonths !== ''
+    const hasMaxAge = maxAgeYears !== '' || maxAgeMonths !== ''
+    
+    let matchesAgeRange = true
+    if (hasMinAge) {
+      const minTotalMonths = (minAgeYears ? parseInt(minAgeYears) || 0 : 0) * 12 + (minAgeMonths ? parseInt(minAgeMonths) || 0 : 0)
+      matchesAgeRange = matchesAgeRange && totalMonths >= minTotalMonths
+    }
+    if (hasMaxAge) {
+      const maxTotalMonths = (maxAgeYears ? parseInt(maxAgeYears) || 0 : 0) * 12 + (maxAgeMonths ? parseInt(maxAgeMonths) || 0 : 0)
+      matchesAgeRange = matchesAgeRange && totalMonths <= maxTotalMonths
+    }
 
-    return matchesSearch && matchesStatus && matchesAgeRange
+    // Absentee filter
+    const studentAbsenceCount = studentAbsences[student.id] || 0
+    const matchesAbsenteeRange =
+      (minAbsentee === '' || studentAbsenceCount >= parseInt(minAbsentee)) &&
+      (maxAbsentee === '' || studentAbsenceCount <= parseInt(maxAbsentee))
+
+    // Course filter
+    const matchesCourse = courseFilter === 'all' || 
+      (student.enrolled_class_ids && student.enrolled_class_ids.includes(courseFilter))
+
+    return matchesSearch && matchesStatus && matchesAgeRange && matchesAbsenteeRange && matchesCourse
   })
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -340,11 +493,11 @@ export default function StudentsPage() {
       { header: t('students.studentName'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
       { header: t('students.lastName'), accessor: (row) => row.student_last_name },
       { header: t('students.dateOfBirth'), accessor: (row) => formatDate(row.student_date_of_birth) },
-      { header: t('students.age'), accessor: (row) => ageInYears(row.student_date_of_birth).toFixed(1) },
+      { header: t('students.age'), accessor: (row) => formatAge(row.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort')) },
       { header: t('students.parentName'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
       { header: t('students.phone'), accessor: (row) => row.phone },
       { header: t('students.email'), accessor: (row) => row.email || '' },
-      { header: t('students.status'), accessor: (row) => row.status },
+      { header: t('students.status'), accessor: (row) => row.status === 'active' ? t('common.active') : row.status === 'inactive' ? t('common.inactive') : row.status === 'moved' ? t('common.moved') : t('common.dontDisturb') },
       { header: t('students.enrolledClasses'), accessor: (row) => row.enrolled_class_ids?.map(getClassName).filter((name: string | null): name is string => name !== null).join(', ') || '-' },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
@@ -356,11 +509,11 @@ export default function StudentsPage() {
       { header: t('students.studentName'), accessor: (row) => `${row.student_first_name} ${row.student_last_name}` },
       { header: t('students.lastName'), accessor: (row) => row.student_last_name },
       { header: t('students.dateOfBirth'), accessor: (row) => formatDate(row.student_date_of_birth) },
-      { header: t('students.age'), accessor: (row) => ageInYears(row.student_date_of_birth).toFixed(1) },
+      { header: t('students.age'), accessor: (row) => formatAge(row.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort')) },
       { header: t('students.parentName'), accessor: (row) => `${row.parent_first_name} ${row.parent_middle_name || ''}`.trim() },
       { header: t('students.phone'), accessor: (row) => row.phone },
       { header: t('students.email'), accessor: (row) => row.email || '' },
-      { header: t('students.status'), accessor: (row) => row.status },
+      { header: t('students.status'), accessor: (row) => row.status === 'active' ? t('common.active') : row.status === 'inactive' ? t('common.inactive') : row.status === 'moved' ? t('common.moved') : t('common.dontDisturb') },
       { header: t('students.enrolledClasses'), accessor: (row) => row.enrolled_class_ids?.map(getClassName).filter((name: string | null): name is string => name !== null).join(', ') || '-' },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
@@ -409,25 +562,91 @@ export default function StudentsPage() {
             <option value="moved">{t('common.moved')}</option>
             <option value="don't disturb">{t('common.dontDisturb')}</option>
           </Select>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">{t('students.age')}:</label>
-            <Input
-              type="number"
-              step="0.1"
-              placeholder={t('common.from')}
-              value={minAge}
-              onChange={(e) => setMinAge(e.target.value)}
-              className="w-24"
-            />
-            <span className="text-sm">{t('common.to')}</span>
-            <Input
-              type="number"
-              step="0.1"
-              placeholder={t('common.to')}
-              value={maxAge}
-              onChange={(e) => setMaxAge(e.target.value)}
-              className="w-24"
-            />
+          <Select
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+            className="w-48"
+          >
+            <option value="all">{t('common.all')} {t('dashboard.classes')}</option>
+            {classes.filter(cls => cls.status === 'active').map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('students.age')} {t('common.from')}
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder={t('common.yearsShort')}
+                value={minAgeYears}
+                onChange={(e) => setMinAgeYears(e.target.value)}
+                className="w-20"
+                min="0"
+              />
+              <Input
+                type="number"
+                placeholder={t('common.monthsShort')}
+                value={minAgeMonths}
+                onChange={(e) => setMinAgeMonths(e.target.value)}
+                className="w-20"
+                min="0"
+                max="11"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('students.age')} {t('common.to')}
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder={t('common.yearsShort')}
+                value={maxAgeYears}
+                onChange={(e) => setMaxAgeYears(e.target.value)}
+                className="w-20"
+                min="0"
+              />
+              <Input
+                type="number"
+                placeholder={t('common.monthsShort')}
+                value={maxAgeMonths}
+                onChange={(e) => setMaxAgeMonths(e.target.value)}
+                className="w-20"
+                min="0"
+                max="11"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('studentAbsentees.title')} ({t('common.from')} - {t('common.to')})
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder={t('common.from')}
+                value={minAbsentee}
+                onChange={(e) => setMinAbsentee(e.target.value)}
+                className="w-24"
+                min="0"
+              />
+              <span className="text-sm self-center">{t('common.to')}</span>
+              <Input
+                type="number"
+                placeholder={t('common.to')}
+                value={maxAbsentee}
+                onChange={(e) => setMaxAbsentee(e.target.value)}
+                className="w-24"
+                min="0"
+              />
+            </div>
           </div>
         </div>
         <div className="flex gap-4 items-center">
@@ -499,7 +718,7 @@ export default function StudentsPage() {
                     {student.student_first_name} {student.student_last_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {ageInYears(student.student_date_of_birth).toFixed(1)}
+                    {formatAge(student.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort'))}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.parent_first_name} {student.parent_middle_name || ''}
@@ -516,7 +735,10 @@ export default function StudentsPage() {
                       student.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
                       'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {student.status}
+                      {student.status === 'active' ? t('common.active') :
+                       student.status === 'inactive' ? t('common.inactive') :
+                       student.status === 'moved' ? t('common.moved') :
+                       t('common.dontDisturb')}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
@@ -554,6 +776,13 @@ export default function StudentsPage() {
                     {formatDate(student.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button
+                      onClick={() => handleViewSummary(student)}
+                      className="text-green-600 hover:text-green-900 mr-3"
+                      title={t('students.viewSummary')}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => handleEdit(student)}
                       className="text-blue-600 hover:text-blue-900 mr-3"
@@ -811,6 +1040,116 @@ export default function StudentsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Student Summary Modal */}
+      <Modal
+        isOpen={isSummaryModalOpen}
+        onClose={() => { setIsSummaryModalOpen(false); setSelectedStudentForSummary(null); setStudentSummary(null) }}
+        title={selectedStudentForSummary ? `${t('students.studentSummary')}: ${selectedStudentForSummary.student_first_name} ${selectedStudentForSummary.student_last_name}` : t('students.studentSummary')}
+        size="lg"
+      >
+        {loadingSummary ? (
+          <div className="text-center py-8">{t('common.loading')}</div>
+        ) : studentSummary ? (
+          <div className="space-y-6">
+            {/* First Lesson Date */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-gray-900">{t('students.firstLessonDate')}</h3>
+              <p className="text-gray-700">
+                {studentSummary.firstLessonDate 
+                  ? formatDate(studentSummary.firstLessonDate)
+                  : t('students.noFirstLesson')}
+              </p>
+            </div>
+
+            {/* Attendances */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-gray-900">{t('students.attendedClasses')} ({studentSummary.attendances.length})</h3>
+              {studentSummary.attendances.length > 0 ? (
+                <div className="border rounded overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.date')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.class')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('attendances.status')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {studentSummary.attendances.map((attendance, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2 text-sm text-gray-900">{formatDate(attendance.date)}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{attendance.class_name}</td>
+                          <td className="px-4 py-2 text-sm">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              attendance.status === 'present' ? 'bg-green-100 text-green-800' :
+                              attendance.status === 'absent' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {attendance.status === 'present' ? t('attendances.present') :
+                               attendance.status === 'absent' ? t('attendances.absent') :
+                               t('attendances.absentValidReason')}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-gray-500">{t('students.noAttendances')}</p>
+              )}
+            </div>
+
+            {/* Payments */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-gray-900">{t('payments.title')} ({studentSummary.payments.length})</h3>
+              {studentSummary.payments.length > 0 ? (
+                <div className="border rounded overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.date')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.class')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.amount')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.paymentType')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.availableLessons')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {studentSummary.payments.map((payment, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2 text-sm text-gray-900">{formatDate(payment.date)}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{payment.class_name}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{payment.amount} {t('common.uah')}</td>
+                          <td className="px-4 py-2 text-sm">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {payment.status === 'paid' ? t('payments.paid') : t('payments.pending')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-500">
+                            {payment.type === 'cash' ? t('payments.cash') : 
+                             payment.type === 'card' ? t('payments.card') : 
+                             t('payments.test')}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{payment.available_lessons}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-gray-500">{t('students.noPayments')}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">{t('common.noData')}</div>
+        )}
       </Modal>
     </div>
   )

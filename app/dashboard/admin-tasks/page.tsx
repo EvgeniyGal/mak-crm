@@ -208,7 +208,7 @@ export default function AdminTasksPage() {
               disabled={filteredTasks.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('adminTasks.addTask')}
           </Button>
@@ -428,7 +428,7 @@ export default function AdminTasksPage() {
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit">
+            <Button type="submit" variant={editingTask ? "default" : "success"}>
               {editingTask ? t('common.saveChanges') : t('adminTasks.addTask')}
             </Button>
           </div>

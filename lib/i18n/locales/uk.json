@@ -9,6 +9,8 @@
     "search": "Пошук",
     "filter": "Фільтр",
     "sort": "Сортувати",
+    "sortAsc": "За зростанням",
+    "sortDesc": "За спаданням",
     "status": "Статус",
     "statuses": "Статуси",
     "types": "Типи",
@@ -65,7 +67,8 @@
     "card": "Картка",
     "test": "Тестовий",
     "paid": "Сплачено",
-    "pending": "Очікує"
+    "pending": "Очікує",
+    "today": "Сьогодні"
   },
   "auth": {
     "login": "Вхід",
@@ -95,7 +98,7 @@
     "users": "Користувачі",
     "analytics": "Аналітика",
     "title": "Головна панель",
-    "firstLesson": "Перший урок",
+    "firstLesson": "Тестовий урок",
     "absentStudents": "Відсутні студенти",
     "birthdays": "День народження",
     "finance": "Фінанси",
@@ -117,9 +120,13 @@
     "type": "Тип",
     "birthday": "День народження",
     "noTasks": "Немає завдань",
-    "noFirstLessons": "Немає перших уроків",
+    "noFirstLessons": "Немає тестових уроків",
     "noAbsentStudents": "Немає відсутніх студентів",
-    "noBirthdays": "Немає днів народження"
+    "noBirthdays": "Немає днів народження",
+    "studentsWithTestLesson": "Студенти, які мають тестовий урок цього місяця",
+    "noStudentsWithTestLesson": "Немає студентів з тестовими уроками цього місяця",
+    "studentsAttendedFirstTime": "Студенти, які відвідали вперше цього місяця",
+    "noStudentsAttendedFirstTime": "Немає студентів, які відвідали вперше цього місяця"
   },
   "students": {
     "title": "Студенти",
@@ -145,7 +152,14 @@
     "sortByAge": "Віком",
     "sortByDate": "Датою створення",
     "noStudents": "Немає студентів",
-    "commentPlaceholder": "Додайте коментар про студента..."
+    "commentPlaceholder": "Додайте коментар про студента...",
+    "viewSummary": "Переглянути історію",
+    "studentSummary": "Історія студента",
+    "firstLessonDate": "Дата першого уроку",
+    "noFirstLesson": "Перший урок не зафіксовано",
+    "attendedClasses": "Відвідані заняття",
+    "noAttendances": "Відвідуваність не зафіксована",
+    "noPayments": "Платежі не зафіксовані"
   },
   "teachers": {
     "title": "Вчителі",
@@ -247,6 +261,8 @@
     "class": "Клас",
     "selectClass": "Вибрати клас",
     "weekDay": "День тижня",
+    "dayOfWeek": "День тижня",
+    "day": "День",
     "startTime": "Час початку",
     "endTime": "Час закінчення",
     "time": "ЧАС",
@@ -259,14 +275,27 @@
     "saturday": "Субота",
     "list": "Список",
     "calendar": "Календар",
+    "week": "Тиждень",
     "room": "Кімната",
     "allRooms": "Всі кімнати",
     "teacher": "Вчитель",
+    "teachers": "Вчителі",
+    "noName": "Без назви",
+    "noEventsInRange": "Немає подій у цьому діапазоні",
+    "roomOccupied": "Кімната {{roomName}} зайнята",
+    "teacherOccupied": "Вчитель {{firstName}} {{lastName}} зайнятий",
+    "cannotMoveRoomOccupied": "Неможливо перемістити: кімната зайнята",
+    "errorUpdating": "Помилка оновлення розкладу",
+    "errorResizing": "Помилка зміни тривалості розкладу",
+    "conflictsFound": "Знайдено конфлікти",
     "confirmDelete": "Ви впевнені, що хочете видалити цей розклад?",
     "errorDeleting": "Помилка видалення розкладу",
     "errorSaving": "Помилка збереження розкладу",
     "conflict": "Конфлікт розкладу",
-    "conflictMessage": "В цей час вже запланований інший урок"
+    "conflictMessage": "В цей час вже запланований інший урок",
+    "dayDetails": "Деталі дня",
+    "noAttendanceForDay": "Немає відвідуваності для цього дня",
+    "noStudents": "Немає студентів"
   },
   "rooms": {
     "title": "Кімнати",
@@ -304,7 +333,10 @@
     "searchPlaceholder": "Пошук за студентом або коментарем...",
     "validReason": "Відсутній з поважною причиною",
     "noClass": "Немає уроку",
-    "totalPerDay": "Всього за день"
+    "totalPerDay": "Всього за день",
+    "studentsWithoutPayment": "Деякі учні не мають оплачених уроків. Будь ласка, додайте платіж перед додаванням відвідуваності.",
+    "successMessage": "Відвідуваність успішно створена",
+    "errorMessage": "Помилка створення відвідуваності"
   },
   "classAttendances": {
     "title": "Відвідуваність класів",
@@ -346,7 +378,13 @@
     "errorSaving": "Помилка збереження платежу",
     "errorDeleting": "Помилка видалення платежу",
     "confirmDelete": "Ви впевнені, що хочете видалити цей платіж?",
-    "searchPlaceholder": "Пошук за студентом або класом..."
+    "searchPlaceholder": "Пошук за студентом або класом...",
+    "comment": "Коментар",
+    "commentPlaceholder": "Додайте коментар про платіж...",
+    "sortByDate": "Дата",
+    "sortByName": "Ім'я студента",
+    "sortByCourse": "Курс",
+    "courses": "Курси"
   },
   "studentPayments": {
     "title": "Платежі студентів",
@@ -378,7 +416,7 @@
     "titleLabel": "Назва",
     "type": "Тип",
     "allTypes": "Типи",
-    "firstLesson": "Перший урок",
+    "firstLesson": "Тестовий урок",
     "absent": "Відсутні",
     "admin": "Адмін",
     "birthday": "День народження",

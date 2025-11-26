@@ -443,7 +443,7 @@ export default function StudentPaymentsPage() {
               disabled={sortedPayments.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('payments.addPayment')}
           </Button>

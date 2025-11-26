@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Plus, Edit, Trash2, Calendar } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import { Calendar as BigCalendar, momentLocalizer, Event, SlotInfo } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import moment from 'moment'
@@ -40,6 +40,45 @@ const CustomToolbar = () => {
   return <div style={{ display: 'none' }} /> // Hide the toolbar completely
 }
 
+// Custom event component with button to view day details
+// This component will be used inside the SchedulesPage component to access the handler
+const createCustomEvent = (onViewDayDetails: (date: string) => void) => {
+  return ({ event }: { event: EventWithId & { resource: Schedule } }) => {
+    const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+      const eventDate = event.start instanceof Date ? event.start : event.start ? new Date(event.start) : new Date()
+      onViewDayDetails(moment(eventDate).format('YYYY-MM-DD'))
+    }
+
+    return (
+      <div className="rbc-event-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '2px 4px', height: '100%' }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+          {event.title}
+        </span>
+        <button
+          onClick={handleClick}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            marginLeft: '4px',
+            padding: '2px 4px',
+            background: 'rgba(255, 255, 255, 0.3)',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            flexShrink: 0,
+          }}
+          title="Переглянути деталі дня"
+        >
+          <Eye size={12} />
+        </button>
+      </div>
+    )
+  }
+}
+
 interface Schedule {
   id: string
   class_id: string
@@ -56,6 +95,7 @@ interface Class {
   name: string
   teachers_ids: string[]
   room_id: string | null
+  student_ids?: string[]
 }
 
 interface Room {
@@ -96,6 +136,38 @@ export default function SchedulesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [view, setView] = useState<'list' | 'calendar'>('calendar')
   const [roomFilter, setRoomFilter] = useState<string>('')
+  const [currentDate, setCurrentDate] = useState<Date>(new Date())
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false)
+  const [selectedScheduleForAttendance, setSelectedScheduleForAttendance] = useState<Schedule | null>(null)
+  const [selectedDateForAttendance, setSelectedDateForAttendance] = useState<string>('')
+  const [students, setStudents] = useState<Array<{ id: string; student_first_name: string; student_last_name: string }>>([])
+  const [classStudents, setClassStudents] = useState<Array<{ id: string; student_first_name: string; student_last_name: string }>>([])
+  const [studentPresences, setStudentPresences] = useState<Record<string, { status: string; comment: string }>>({})
+  const [studentAvailableLessons, setStudentAvailableLessons] = useState<Record<string, number>>({})
+  const [createPaymentModalOpen, setCreatePaymentModalOpen] = useState(false)
+  const [paymentForm, setPaymentForm] = useState<{ student_id: string; class_id: string; package_type_id: string; status: string; type: string; available_lesson_count: number }>({
+    student_id: '',
+    class_id: '',
+    package_type_id: '',
+    status: 'paid',
+    type: 'cash',
+    available_lesson_count: 0,
+  })
+  const [classPackageTypes, setClassPackageTypes] = useState<Array<{ id: string; name: string; lesson_count: number }>>([])
+  const [isDayDetailsModalOpen, setIsDayDetailsModalOpen] = useState(false)
+  const [selectedDateForDetails, setSelectedDateForDetails] = useState<string>('')
+  const [dayAttendanceData, setDayAttendanceData] = useState<Array<{
+    class_id: string
+    class_name: string
+    students: Array<{
+      id: string
+      student_first_name: string
+      student_last_name: string
+      status: string
+      comment: string | null
+    }>
+  }>>([])
+  const [loadingDayDetails, setLoadingDayDetails] = useState(false)
 
   const [formData, setFormData] = useState({
     class_id: '',
@@ -106,19 +178,82 @@ export default function SchedulesPage() {
 
   const fetchSchedules = useCallback(async () => {
     try {
+      // Query schedules with courses relationship (table was renamed from classes to courses)
       const { data, error } = await supabase
         .from('schedules')
         .select(`
           *,
-          classes(name, teachers_ids, room_id, rooms(name))
+          courses(name, teachers_ids, room_id, rooms(name))
         `)
         .order('week_day', { ascending: true })
         .order('time_slot', { ascending: true })
 
-      if (error) throw error
-      setSchedules(data || [])
+      if (error) {
+        console.error('Error fetching schedules:', error)
+        // If courses relationship fails, try fetching separately
+        const { data: schedulesOnly, error: schedulesError } = await supabase
+          .from('schedules')
+          .select('*')
+          .order('week_day', { ascending: true })
+          .order('time_slot', { ascending: true })
+        
+        if (schedulesError) throw schedulesError
+        
+        // Fetch courses separately and merge
+        const schedulesWithCourses = await Promise.all((schedulesOnly || []).map(async (schedule) => {
+          const { data: courseData } = await supabase
+            .from('courses')
+            .select('name, teachers_ids, room_id')
+            .eq('id', schedule.class_id)
+            .single()
+          
+          let roomData = null
+          if (courseData?.room_id) {
+            const { data: room } = await supabase
+              .from('rooms')
+              .select('name')
+              .eq('id', courseData.room_id)
+              .single()
+            roomData = room
+          }
+          
+          return {
+            ...schedule,
+            courses: courseData ? {
+              ...courseData,
+              rooms: roomData
+            } : null
+          }
+        }))
+        
+        const normalizedSchedules = schedulesWithCourses.map(s => ({
+          ...s,
+          classes: s.courses || s.classes
+        }))
+        
+        setSchedules(normalizedSchedules as Schedule[])
+        console.log(`Fetched ${normalizedSchedules.length} schedules (separate queries)`)
+        return
+      }
+      
+      const schedulesData = data || []
+      console.log(`✅ Fetched ${schedulesData.length} schedules:`, schedulesData.map(s => ({ 
+        id: s.id, 
+        class: s.courses?.name || s.classes?.name, 
+        week_day: s.week_day, 
+        time: s.time_slot 
+      })))
+      
+      // Normalize the data structure - use 'classes' key for backward compatibility
+      const normalizedSchedules = schedulesData.map(s => ({
+        ...s,
+        classes: s.courses || s.classes // Support both old and new structure
+      }))
+      
+      setSchedules(normalizedSchedules as Schedule[])
     } catch (error) {
       console.error('Error fetching schedules:', error)
+      setSchedules([]) // Set empty array on error
     } finally {
       setLoading(false)
     }
@@ -128,7 +263,7 @@ export default function SchedulesPage() {
     try {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, name, teachers_ids, room_id')
+        .select('id, name, teachers_ids, room_id, student_ids')
         .eq('status', 'active')
 
       if (error) throw error
@@ -164,57 +299,129 @@ export default function SchedulesPage() {
     }
   }, [supabase])
 
+  const fetchStudents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, student_first_name, student_last_name')
+
+      if (error) throw error
+      setStudents(data || [])
+    } catch (error) {
+      console.error('Error fetching students:', error)
+    }
+  }, [supabase])
+
   // Generate events for multiple weeks so calendar navigation works
   const events = useMemo(() => {
     // Apply room filter if selected
     const filteredSchedules = roomFilter
       ? schedules.filter((s) => {
-          const scheduleClass = classes.find((c) => c.id === s.class_id)
-          return scheduleClass?.room_id === roomFilter
+          // Check room_id from the schedule's classes relationship or from classes state
+          const roomId = s.classes?.room_id || classes.find((c) => c.id === s.class_id)?.room_id
+          return roomId === roomFilter
         })
       : schedules
 
     const eventsList: (EventWithId & { resource: Schedule })[] = []
-    const currentDate = moment()
-    // Ensure we start from Sunday (0) not Monday
-    // startOf('week') in Ukrainian locale might start on Monday, so we use isoWeek and subtract 1 day
-    const startOfVisibleWeek = currentDate.clone().startOf('isoWeek').subtract(1, 'day').subtract(8, 'weeks')
-    const endOfVisibleWeek = startOfVisibleWeek.clone().add(16, 'weeks') // Show 16 weeks total
+    
+    if (filteredSchedules.length === 0) {
+      return eventsList
+    }
+
+    // Generate events for a wide range centered on current date
+    const today = moment().startOf('day')
+    // Get the current Sunday (week starts on Sunday in our system)
+    const currentSunday = today.clone().day(0) // day(0) sets to Sunday
+    if (currentSunday.isAfter(today)) {
+      // If today is not Sunday, go back to last Sunday
+      currentSunday.subtract(1, 'week')
+    }
+    
+    // Start from 4 weeks before current Sunday, end 12 weeks after
+    const startDate = currentSunday.clone().subtract(4, 'weeks')
+    // const endDate = currentSunday.clone().add(12, 'weeks').add(6, 'days') // Add 6 days to get to Saturday
     
     filteredSchedules.forEach((schedule) => {
-      const startTime = moment(schedule.time_slot, 'HH:mm:ss')
-      const endTime = schedule.end_time 
-        ? moment(schedule.end_time, 'HH:mm:ss')
-        : moment(schedule.time_slot, 'HH:mm:ss').add(1, 'hour')
+      // Parse time slot - handle both HH:mm:ss and HH:mm formats
+      const startTime = moment(schedule.time_slot, ['HH:mm:ss', 'HH:mm'], true)
+      if (!startTime.isValid()) {
+        console.warn(`Invalid time_slot for schedule ${schedule.id}: ${schedule.time_slot}`)
+        return
+      }
       
-      // Generate recurring events for each week
-      const weekDate = startOfVisibleWeek.clone()
-      while (weekDate.isBefore(endOfVisibleWeek)) {
-        // week_day: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-        // weekDate is already at Sunday (start of week), so we just add the day offset
-        const eventStart = weekDate.clone()
-          .add(schedule.week_day, 'days')
-          .set({ hour: startTime.hour(), minute: startTime.minute(), second: 0, millisecond: 0 })
+      let endTime = schedule.end_time 
+        ? moment(schedule.end_time, ['HH:mm:ss', 'HH:mm'], true)
+        : startTime.clone().add(1, 'hour')
+      
+      if (!endTime.isValid()) {
+        endTime = startTime.clone().add(1, 'hour')
+      }
+      
+      // Ensure week_day is valid (0-6)
+      const weekDay = Math.max(0, Math.min(6, schedule.week_day))
+      
+      // Generate recurring events for each week in the date range
+      // Start from the Sunday of startDate
+      
+      // Generate events for up to 16 weeks
+      for (let weekOffset = 0; weekOffset < 16; weekOffset++) {
+        const weekSunday = startDate.clone().add(weekOffset, 'weeks')
+        
+        // Calculate the date for this week_day in this week
+        // weekSunday is Sunday (day 0), so we add weekDay days
+        const eventDate = weekSunday.clone().add(weekDay, 'days')
+        
+        const eventStart = eventDate.clone()
+          .set({ 
+            hour: startTime.hour(), 
+            minute: startTime.minute(), 
+            second: 0, 
+            millisecond: 0 
+          })
 
-        const eventEnd = weekDate.clone()
-          .add(schedule.week_day, 'days')
-          .set({ hour: endTime.hour(), minute: endTime.minute(), second: 0, millisecond: 0 })
+        const eventEnd = eventDate.clone()
+          .set({ 
+            hour: endTime.hour(), 
+            minute: endTime.minute(), 
+            second: 0, 
+            millisecond: 0 
+          })
 
         eventsList.push({
-          id: `${schedule.id}-${weekDate.format('YYYY-WW')}`, // Unique ID per week
-          title: schedule.classes?.name || t('schedules.noName'),
+          id: `${schedule.id}-${weekSunday.format('YYYY-WW')}`,
+          title: schedule.classes?.name || t('schedules.noName') || 'Без назви',
           start: eventStart.toDate(),
           end: eventEnd.toDate(),
           resource: schedule,
         } as EventWithId & { resource: Schedule })
-        
-        // Move to the next week's Sunday
-        weekDate.add(1, 'week')
       }
     })
     
-                     return eventsList
-     }, [schedules, classes, roomFilter, t])
+    // Debug: log event count and sample events
+    if (eventsList.length > 0) {
+      console.log(`✅ Generated ${eventsList.length} events from ${filteredSchedules.length} schedules`)
+      if (eventsList.length > 0) {
+        console.log('Sample events:', eventsList.slice(0, 3).map(e => ({
+          title: e.title,
+          start: moment(e.start).format('YYYY-MM-DD HH:mm'),
+          weekDay: moment(e.start).day()
+        })))
+      }
+    } else {
+      console.log(`⚠️ No events generated. Schedules: ${schedules.length}, Filtered: ${filteredSchedules.length}`)
+      if (filteredSchedules.length > 0) {
+        console.log('Schedule details:', filteredSchedules.map(s => ({
+          id: s.id,
+          class: s.classes?.name,
+          week_day: s.week_day,
+          time_slot: s.time_slot
+        })))
+      }
+    }
+    
+    return eventsList
+  }, [schedules, classes, roomFilter, t])
 
   const checkConflicts = useCallback(() => {
     if (!formData.class_id || !formData.start_time || formData.week_day === undefined) {
@@ -299,7 +506,8 @@ export default function SchedulesPage() {
     fetchClasses()
     fetchRooms()
     fetchTeachers()
-  }, [fetchSchedules, fetchClasses, fetchRooms, fetchTeachers])
+    fetchStudents()
+  }, [fetchSchedules, fetchClasses, fetchRooms, fetchTeachers, fetchStudents])
 
   useEffect(() => {
     checkConflicts()
@@ -387,6 +595,228 @@ export default function SchedulesPage() {
     })
     setEditingSchedule(null)
     setConflicts([])
+  }
+
+  const checkStudentPayment = async (studentId: string, classId: string): Promise<{ id: string; available_lesson_count: number; student_presence_ids: string[] | null; status: string } | null> => {
+    try {
+      // Get all payments for this student and class
+      const { data: allPayments } = await supabase
+        .from('payments')
+        .select('id, available_lesson_count, student_presence_ids, status, created_at')
+        .eq('student_id', studentId)
+        .eq('class_id', classId)
+        .order('created_at', { ascending: false })
+      
+      if (!allPayments || allPayments.length === 0) {
+        return null
+      }
+      
+      // Find the payment with the most available lessons
+      // Prioritize paid payments if they have the same lesson count as pending
+      const paymentsWithLessons = allPayments.filter(p => p.available_lesson_count > 0)
+      
+      if (paymentsWithLessons.length > 0) {
+        // Sort by: 1) available_lesson_count (desc), 2) status (paid first), 3) created_at (desc)
+        paymentsWithLessons.sort((a, b) => {
+          if (a.available_lesson_count !== b.available_lesson_count) {
+            return b.available_lesson_count - a.available_lesson_count
+          }
+          if (a.status !== b.status) {
+            return a.status === 'paid' ? -1 : 1
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+        
+        const bestPayment = paymentsWithLessons[0]
+        return {
+          id: bestPayment.id,
+          available_lesson_count: bestPayment.available_lesson_count,
+          student_presence_ids: bestPayment.student_presence_ids,
+          status: bestPayment.status
+        }
+      }
+      
+      // If no payments with lessons, return the most recent payment (even if 0)
+      const mostRecent = allPayments[0]
+      return {
+        id: mostRecent.id,
+        available_lesson_count: mostRecent.available_lesson_count,
+        student_presence_ids: mostRecent.student_presence_ids,
+        status: mostRecent.status
+      }
+    } catch (error) {
+      console.error('Error in checkStudentPayment:', error)
+      return null
+    }
+  }
+
+  const getLatestPaymentForClass = async (studentId: string, classId: string) => {
+    try {
+      // Get all payments for this student and class
+      const { data: allPayments } = await supabase
+        .from('payments')
+        .select('id, available_lesson_count, status, created_at')
+        .eq('student_id', studentId)
+        .eq('class_id', classId)
+        .order('created_at', { ascending: false })
+      
+      if (!allPayments || allPayments.length === 0) {
+        return null
+      }
+      
+      // Find the payment with the most available lessons
+      // Prioritize paid payments if they have the same lesson count as pending
+      const paymentsWithLessons = allPayments.filter(p => p.available_lesson_count > 0)
+      
+      if (paymentsWithLessons.length > 0) {
+        // Sort by: 1) available_lesson_count (desc), 2) status (paid first), 3) created_at (desc)
+        paymentsWithLessons.sort((a, b) => {
+          if (a.available_lesson_count !== b.available_lesson_count) {
+            return b.available_lesson_count - a.available_lesson_count
+          }
+          if (a.status !== b.status) {
+            return a.status === 'paid' ? -1 : 1
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+        
+        const bestPayment = paymentsWithLessons[0]
+        return {
+          id: bestPayment.id,
+          available_lesson_count: bestPayment.available_lesson_count,
+          status: bestPayment.status
+        }
+      }
+      
+      // If no payments with lessons, return the most recent payment (even if 0)
+      const mostRecent = allPayments[0]
+      return {
+        id: mostRecent.id,
+        available_lesson_count: mostRecent.available_lesson_count,
+        status: mostRecent.status
+      }
+    } catch (error) {
+      console.error('Error in getLatestPaymentForClass:', error)
+      return null
+    }
+  }
+
+  const refreshStudentPayments = async (classId: string) => {
+    if (!classId) return
+    
+    const selectedClass = classes.find(c => c.id === classId)
+    if (!selectedClass) return
+
+    const classStudents = students.filter(s => selectedClass.student_ids?.includes(s.id))
+    const lessonsMap: Record<string, number> = {}
+    for (const student of classStudents) {
+      const payment = await getLatestPaymentForClass(student.id, classId)
+      const lessonCount = payment?.available_lesson_count ?? 0
+      lessonsMap[student.id] = lessonCount
+    }
+    setStudentAvailableLessons(prev => {
+      const updated = { ...prev, ...lessonsMap }
+      return updated
+    })
+  }
+
+  const handleOpenAttendanceModal = async (schedule: Schedule, date: string) => {
+    setSelectedScheduleForAttendance(schedule)
+    setSelectedDateForAttendance(date)
+    
+    // Get class students
+    const selectedClass = classes.find(c => c.id === schedule.class_id)
+    if (selectedClass && selectedClass.student_ids) {
+      const classStudents = students.filter(s => selectedClass!.student_ids!.includes(s.id))
+      setClassStudents(classStudents)
+
+      // Fetch available lessons per student and initialize presences
+      const presences: Record<string, { status: string; comment: string }> = {}
+      const lessonsMap: Record<string, number> = {}
+      for (const student of classStudents) {
+        const payment = await getLatestPaymentForClass(student.id, schedule.class_id)
+        lessonsMap[student.id] = payment?.available_lesson_count ?? 0
+        presences[student.id] = { status: 'present', comment: '' }
+      }
+      setStudentAvailableLessons(lessonsMap)
+      setStudentPresences(presences)
+    }
+    
+    setIsAttendanceModalOpen(true)
+  }
+
+  const handleCreateAttendance = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedScheduleForAttendance) return
+
+    // Check if any students don't have payment
+    if (classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1)) {
+      alert(t('attendances.studentsWithoutPayment') || 'Деякі студенти не мають платежу. Будь ласка, створіть платіж перед додаванням відвідуваності.')
+      return
+    }
+
+    try {
+      // Create attendance
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('attendances')
+        .insert({
+          date: selectedDateForAttendance,
+          class_id: selectedScheduleForAttendance.class_id,
+        })
+        .select()
+        .single()
+
+      if (attendanceError) throw attendanceError
+
+      // Create student presences and update payments
+      for (const [studentId, presence] of Object.entries(studentPresences)) {
+        const { data: presenceData, error: presenceError } = await supabase
+          .from('student_presences')
+          .insert({
+            student_id: studentId,
+            attendance_id: attendanceData.id,
+            status: presence.status,
+            comment: presence.comment || null,
+          })
+          .select()
+          .single()
+
+        if (presenceError) throw presenceError
+
+        // Update payment available_lesson_count
+        if (presence.status !== 'absent with valid reason' && presenceData) {
+          const payment = await checkStudentPayment(studentId, selectedScheduleForAttendance.class_id)
+          if (payment) {
+            const newLessonCount = Math.max(0, payment.available_lesson_count - 1)
+            const updateData: {
+              available_lesson_count: number
+              student_presence_ids: string[]
+            } = {
+              available_lesson_count: newLessonCount,
+              student_presence_ids: [...(payment.student_presence_ids || []), presenceData.id],
+            }
+            
+            // Payment status should remain unchanged - only manager can change it
+            await supabase
+              .from('payments')
+              .update(updateData)
+              .eq('id', payment.id)
+          }
+        }
+      }
+
+      setIsAttendanceModalOpen(false)
+      setSelectedScheduleForAttendance(null)
+      setSelectedDateForAttendance('')
+      setStudentPresences({})
+      setClassStudents([])
+      const successMsg = t('attendances.successMessage')
+      alert(successMsg && successMsg !== 'attendances.successMessage' ? successMsg : 'Відвідуваність успішно створена')
+    } catch (error) {
+      console.error('Error creating attendance:', error)
+      const errorMsg = t('attendances.errorMessage')
+      alert(errorMsg && errorMsg !== 'attendances.errorMessage' ? errorMsg : 'Помилка створення відвідуваності')
+    }
   }
 
   // Handle drag and drop in calendar
@@ -630,6 +1060,255 @@ export default function SchedulesPage() {
     exportToCSV(schedules, columns, 'schedules')
   }
 
+  const fetchDayAttendanceDetails = async (date: string) => {
+    setLoadingDayDetails(true)
+    try {
+      // Fetch all attendances for this date
+      const { data: attendances, error: attendancesError } = await supabase
+        .from('attendances')
+        .select(`
+          id,
+          class_id,
+          courses(name)
+        `)
+        .eq('date', date)
+
+      if (attendancesError) {
+        console.error('Error fetching attendances:', attendancesError)
+        // Fallback: fetch attendances without relationship
+        const { data: attendancesOnly, error: attendancesOnlyError } = await supabase
+          .from('attendances')
+          .select('id, class_id')
+          .eq('date', date)
+        
+        if (attendancesOnlyError) throw attendancesOnlyError
+        
+        if (!attendancesOnly || attendancesOnly.length === 0) {
+          setDayAttendanceData([])
+          setLoadingDayDetails(false)
+          return
+        }
+
+        // Fetch course names separately
+        const attendancesWithCourses = await Promise.all(attendancesOnly.map(async (attendance) => {
+          const { data: courseData } = await supabase
+            .from('courses')
+            .select('name')
+            .eq('id', attendance.class_id)
+            .single()
+          
+          return {
+            ...attendance,
+            courses: courseData
+          }
+        }))
+
+        const attendanceIds = attendancesWithCourses.map(a => a.id)
+
+        // Fetch all student presences for these attendances
+        const { data: presences, error: presencesError } = await supabase
+          .from('student_presences')
+          .select(`
+            id,
+            student_id,
+            attendance_id,
+            status,
+            comment,
+            students(student_first_name, student_last_name)
+          `)
+          .in('attendance_id', attendanceIds)
+
+        if (presencesError) throw presencesError
+
+        // Group by class
+        const groupedByClass: Record<string, {
+          class_id: string
+          class_name: string
+          students: Array<{
+            id: string
+            student_first_name: string
+            student_last_name: string
+            status: string
+            comment: string | null
+          }>
+        }> = {}
+
+        attendancesWithCourses.forEach(attendance => {
+          const classId = attendance.class_id
+          const className = (attendance.courses as any)?.name || classes.find(c => c.id === classId)?.name || t('schedules.noName') || 'Без назви'
+          
+          if (!groupedByClass[classId]) {
+            groupedByClass[classId] = {
+              class_id: classId,
+              class_name: className,
+              students: []
+            }
+          }
+
+          // Add students for this attendance
+          const classPresences = presences?.filter(p => p.attendance_id === attendance.id) || []
+          classPresences.forEach(presence => {
+            const student = presence.students as any
+            groupedByClass[classId].students.push({
+              id: presence.student_id,
+              student_first_name: student?.student_first_name || '',
+              student_last_name: student?.student_last_name || '',
+              status: presence.status,
+              comment: presence.comment
+            })
+          })
+        })
+
+        // Convert to array
+        const result = Object.values(groupedByClass)
+        setDayAttendanceData(result)
+        setLoadingDayDetails(false)
+        return
+      }
+
+      if (!attendances || attendances.length === 0) {
+        setDayAttendanceData([])
+        setLoadingDayDetails(false)
+        return
+      }
+
+      // Get all attendance IDs
+      const attendanceIds = attendances.map(a => a.id)
+
+      // Fetch all student presences for these attendances
+      const { data: presences, error: presencesError } = await supabase
+        .from('student_presences')
+        .select(`
+          id,
+          student_id,
+          attendance_id,
+          status,
+          comment,
+          students(student_first_name, student_last_name)
+        `)
+        .in('attendance_id', attendanceIds)
+
+      if (presencesError) {
+        console.error('Error fetching presences:', presencesError)
+        // Fallback: fetch presences without relationship
+        const { data: presencesOnly, error: presencesOnlyError } = await supabase
+          .from('student_presences')
+          .select('id, student_id, attendance_id, status, comment')
+          .in('attendance_id', attendanceIds)
+        
+        if (presencesOnlyError) throw presencesOnlyError
+
+        // Fetch student names separately
+        const studentIds = [...new Set(presencesOnly?.map(p => p.student_id) || [])]
+        const { data: studentsData } = await supabase
+          .from('students')
+          .select('id, student_first_name, student_last_name')
+          .in('id', studentIds)
+
+        const studentsMap = new Map(studentsData?.map(s => [s.id, s]) || [])
+
+        // Group by class
+        const groupedByClass: Record<string, {
+          class_id: string
+          class_name: string
+          students: Array<{
+            id: string
+            student_first_name: string
+            student_last_name: string
+            status: string
+            comment: string | null
+          }>
+        }> = {}
+
+        attendances.forEach(attendance => {
+          const classId = attendance.class_id
+          const className = (attendance.courses as any)?.name || classes.find(c => c.id === classId)?.name || t('schedules.noName') || 'Без назви'
+          
+          if (!groupedByClass[classId]) {
+            groupedByClass[classId] = {
+              class_id: classId,
+              class_name: className,
+              students: []
+            }
+          }
+
+          // Add students for this attendance
+          const classPresences = presencesOnly?.filter(p => p.attendance_id === attendance.id) || []
+          classPresences.forEach(presence => {
+            const student = studentsMap.get(presence.student_id)
+            groupedByClass[classId].students.push({
+              id: presence.student_id,
+              student_first_name: student?.student_first_name || '',
+              student_last_name: student?.student_last_name || '',
+              status: presence.status,
+              comment: presence.comment
+            })
+          })
+        })
+
+        // Convert to array
+        const result = Object.values(groupedByClass)
+        setDayAttendanceData(result)
+        setLoadingDayDetails(false)
+        return
+      }
+
+      // Group by class
+      const groupedByClass: Record<string, {
+        class_id: string
+        class_name: string
+        students: Array<{
+          id: string
+          student_first_name: string
+          student_last_name: string
+          status: string
+          comment: string | null
+        }>
+      }> = {}
+
+      attendances.forEach(attendance => {
+        const classId = attendance.class_id
+        const className = (attendance.courses as any)?.name || classes.find(c => c.id === classId)?.name || t('schedules.noName') || 'Без назви'
+        
+        if (!groupedByClass[classId]) {
+          groupedByClass[classId] = {
+            class_id: classId,
+            class_name: className,
+            students: []
+          }
+        }
+
+        // Add students for this attendance
+        const classPresences = presences?.filter(p => p.attendance_id === attendance.id) || []
+        classPresences.forEach(presence => {
+          const student = presence.students as any
+          groupedByClass[classId].students.push({
+            id: presence.student_id,
+            student_first_name: student?.student_first_name || '',
+            student_last_name: student?.student_last_name || '',
+            status: presence.status,
+            comment: presence.comment
+          })
+        })
+      })
+
+      // Convert to array
+      const result = Object.values(groupedByClass)
+      setDayAttendanceData(result)
+    } catch (error) {
+      console.error('Error fetching day attendance details:', error)
+      setDayAttendanceData([])
+    } finally {
+      setLoadingDayDetails(false)
+    }
+  }
+
+  const handleViewDayDetails = async (date: string) => {
+    setSelectedDateForDetails(date)
+    setIsDayDetailsModalOpen(true)
+    await fetchDayAttendanceDetails(date)
+  }
+
   if (loading) {
     return <div className="p-8 text-gray-900">{t('common.loading')}</div>
   }
@@ -659,7 +1338,7 @@ export default function SchedulesPage() {
             <Calendar className="h-4 w-4 mr-2" />
             {t('schedules.calendar')}
           </Button>
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('schedules.addSchedule')}
           </Button>
@@ -668,15 +1347,49 @@ export default function SchedulesPage() {
 
       {view === 'calendar' ? (
         <>
-          <div className="flex items-center gap-4 mb-4">
-            <label className="text-sm text-gray-700">{t('schedules.room')}:</label>
-            <div className="w-64">
-              <Select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)}>
-                <option value="">{t('schedules.allRooms')}</option>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>{room.name}</option>
-                ))}
-              </Select>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <label className="text-sm text-gray-700">{t('schedules.room')}:</label>
+              <div className="w-64">
+                <Select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)}>
+                  <option value="">{t('schedules.allRooms')}</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>{room.name}</option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newDate = moment(currentDate).subtract(1, 'week').toDate()
+                  setCurrentDate(newDate)
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentDate(new Date())}
+              >
+                {t('common.today')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newDate = moment(currentDate).add(1, 'week').toDate()
+                  setCurrentDate(newDate)
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <div className="ml-4 text-sm font-medium text-gray-700">
+                {moment(currentDate).startOf('week').format('D MMM')} - {moment(currentDate).endOf('week').format('D MMM YYYY')}
+              </div>
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-4" style={{ height: '700px' }}>
@@ -689,7 +1402,8 @@ export default function SchedulesPage() {
             view="week"
             views={['week']}
             defaultView="week"
-            defaultDate={new Date()} // Set to current date
+            date={currentDate} // Controlled date for navigation
+            onNavigate={(newDate: Date) => setCurrentDate(newDate)}
             culture="uk" // Use Ukrainian culture
             min={(() => { const d = new Date(); d.setHours(7, 0, 0, 0); return d })()}
             max={(() => { const d = new Date(); d.setHours(21, 0, 0, 0); return d })()}
@@ -702,6 +1416,7 @@ export default function SchedulesPage() {
             eventPropGetter={eventStyleGetter}
             components={{
               toolbar: CustomToolbar,
+              event: createCustomEvent(handleViewDayDetails),
             }}
             messages={{
               next: t('common.next'),
@@ -710,7 +1425,16 @@ export default function SchedulesPage() {
               week: t('schedules.week'),
               noEventsInRange: t('schedules.noEventsInRange'),
             }}
-            onSelectEvent={(event: EventWithId) => handleEdit((event as EventWithId & { resource: Schedule }).resource)}
+            onSelectEvent={(event: EventWithId) => {
+              const schedule = (event as EventWithId & { resource: Schedule }).resource
+              const eventDate = event.start instanceof Date ? event.start : event.start ? new Date(event.start) : new Date()
+              // Open attendance modal by default, user can edit schedule from list view
+              handleOpenAttendanceModal(schedule, moment(eventDate).format('YYYY-MM-DD'))
+            }}
+            onDoubleClickEvent={(event: EventWithId) => {
+              // Double click to edit schedule
+              handleEdit((event as EventWithId & { resource: Schedule }).resource)
+            }}
             popup
           />
           </div>
@@ -912,12 +1636,421 @@ export default function SchedulesPage() {
               <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={conflicts.length > 0}>
+              <Button type="submit" disabled={conflicts.length > 0} variant={editingSchedule ? "default" : "success"}>
                 {editingSchedule ? t('common.save') : t('schedules.addSchedule')}
               </Button>
             </div>
           </div>
         </form>
+      </Modal>
+
+      {/* Attendance Creation Modal */}
+      <Modal
+        isOpen={isAttendanceModalOpen}
+        onClose={() => {
+          setIsAttendanceModalOpen(false)
+          setSelectedScheduleForAttendance(null)
+          setSelectedDateForAttendance('')
+          setStudentPresences({})
+          setClassStudents([])
+        }}
+        title={t('attendances.addAttendance') || 'Додати відвідуваність'}
+        size="xl"
+      >
+        <form onSubmit={handleCreateAttendance} className="flex flex-col h-full space-y-4">
+          <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('attendances.class')} *
+              </label>
+              <Input
+                type="text"
+                value={selectedScheduleForAttendance ? classes.find(c => c.id === selectedScheduleForAttendance.class_id)?.name || '' : ''}
+                disabled
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('attendances.date')} *
+              </label>
+              <Input
+                type="date"
+                value={selectedDateForAttendance}
+                disabled
+              />
+            </div>
+          </div>
+
+          {classStudents.length > 0 ? (
+            <div className="flex flex-col flex-1 min-h-0">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('attendances.students')}
+              </label>
+              <div className="space-y-2 flex-1 overflow-y-auto border rounded p-4">
+                {classStudents.map((student) => (
+                  <div key={student.id} className="flex items-center gap-4 p-2 border-b">
+                    <div className="flex-1">
+                      <p className="font-medium">{student.student_first_name} {student.student_last_name}</p>
+                      <div className="mt-1 text-sm flex items-center gap-2">
+                        <span className={`inline-block px-2 py-0.5 rounded ${
+                          (studentAvailableLessons[student.id] ?? 0) === 0
+                            ? 'bg-red-100 text-red-800'
+                            : (studentAvailableLessons[student.id] ?? 0) <= 3
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-green-100 text-green-800'
+                        }`}>
+                          {t('payments.availableLessons') || 'Доступні уроки'}: {studentAvailableLessons[student.id] ?? 0}
+                        </span>
+                        {(studentAvailableLessons[student.id] ?? 0) < 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              // Prefill payment form for this student and selected class
+                              setPaymentForm({
+                                student_id: student.id,
+                                class_id: selectedScheduleForAttendance!.class_id,
+                                package_type_id: '',
+                                status: 'paid',
+                                type: 'cash',
+                                available_lesson_count: 0,
+                              })
+                              // Load package types for selected class
+                              try {
+                                const { data } = await supabase
+                                  .from('package_types')
+                                  .select('id, name, lesson_count')
+                                  .eq('class_id', selectedScheduleForAttendance!.class_id)
+                                setClassPackageTypes((data as { id: string; name: string; lesson_count: number }[] | null)?.map(pt => ({ id: pt.id, name: pt.name, lesson_count: pt.lesson_count })) || [])
+                              } catch {
+                                setClassPackageTypes([])
+                              }
+                              setCreatePaymentModalOpen(true)
+                            }}
+                          >
+                            {t('payments.addPayment') || 'Додати платіж'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <Select
+                      value={studentPresences[student.id]?.status || 'present'}
+                      onChange={(e) => {
+                        setStudentPresences({
+                          ...studentPresences,
+                          [student.id]: {
+                            ...studentPresences[student.id],
+                            status: e.target.value,
+                          },
+                        })
+                      }}
+                      className="w-48"
+                    >
+                      <option value="present">{t('attendances.present') || 'Присутній'}</option>
+                      <option value="absent">{t('attendances.absent') || 'Відсутній'}</option>
+                      <option value="absent with valid reason">{t('attendances.absentValidReason') || 'Відсутній з поважною причиною'}</option>
+                    </Select>
+                    <Input
+                      placeholder={t('attendances.comment') || 'Коментар'}
+                      value={studentPresences[student.id]?.comment || ''}
+                      onChange={(e) => {
+                        setStudentPresences({
+                          ...studentPresences,
+                          [student.id]: {
+                            ...studentPresences[student.id],
+                            comment: e.target.value,
+                          },
+                        })
+                      }}
+                      className="w-48"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800">
+                {t('attendances.noStudents') || 'У цьому класі немає студентів. Неможливо створити відвідуваність.'}
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 flex-shrink-0 pt-4 border-t">
+            {classStudents.length > 0 && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1) && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                <p className="text-sm text-red-800">
+                  {t('attendances.studentsWithoutPayment') || 'Деякі студенти не мають платежу. Будь ласка, створіть платіж перед додаванням відвідуваності.'}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsAttendanceModalOpen(false)
+                  setSelectedScheduleForAttendance(null)
+                  setSelectedDateForAttendance('')
+                  setStudentPresences({})
+                  setClassStudents([])
+                }}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button 
+                type="submit" 
+                variant="success"
+                disabled={
+                  classStudents.length === 0 || 
+                  classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1)
+                }
+              >
+                {t('attendances.addAttendance') || 'Додати відвідуваність'}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Create Payment Modal */}
+      <Modal
+        isOpen={createPaymentModalOpen}
+        onClose={async () => {
+          setCreatePaymentModalOpen(false)
+          // Small delay to ensure database transaction is committed
+          await new Promise(resolve => setTimeout(resolve, 100))
+          // Refresh payment data when modal closes
+          if (selectedScheduleForAttendance) {
+            await refreshStudentPayments(selectedScheduleForAttendance.class_id)
+          }
+        }}
+        title={t('payments.addPayment') || 'Додати платіж'}
+        size="lg"
+      >
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            try {
+              // Ensure available_lesson_count is set from package type
+              const finalPaymentForm = { ...paymentForm }
+              
+              // Always fetch the package type from database to ensure we have the latest data
+              if (finalPaymentForm.package_type_id) {
+                const { data: pkgData, error: pkgError } = await supabase
+                  .from('package_types')
+                  .select('lesson_count')
+                  .eq('id', finalPaymentForm.package_type_id)
+                  .single()
+                
+                if (pkgError) {
+                  console.error('Error fetching package type:', pkgError)
+                  // Fallback to local data
+                  const pkg = classPackageTypes.find(pt => pt.id === finalPaymentForm.package_type_id)
+                  if (pkg && pkg.lesson_count > 0) {
+                    finalPaymentForm.available_lesson_count = pkg.lesson_count
+                  }
+                } else if (pkgData && pkgData.lesson_count > 0) {
+                  finalPaymentForm.available_lesson_count = pkgData.lesson_count
+                }
+              }
+              
+              // Validate that we have a valid lesson count
+              if (!finalPaymentForm.package_type_id || finalPaymentForm.available_lesson_count <= 0) {
+                alert('Будь ласка, виберіть тип пакету з доступними уроками')
+                return
+              }
+              
+              const { data: newPayment, error } = await supabase
+                .from('payments')
+                .insert([finalPaymentForm])
+                .select()
+                .single()
+              
+              if (error) {
+                console.error('Error inserting payment:', error)
+                throw error
+              }
+              
+              // Verify the payment was created correctly by fetching it back
+              if (newPayment) {
+                const { data: verifyPayment } = await supabase
+                  .from('payments')
+                  .select('id, available_lesson_count, status')
+                  .eq('id', newPayment.id)
+                  .single()
+                
+                const lessonCount = verifyPayment?.available_lesson_count ?? newPayment.available_lesson_count ?? 0
+                
+                setStudentAvailableLessons(prev => ({ 
+                  ...prev, 
+                  [paymentForm.student_id]: lessonCount
+                }))
+                
+                // Also refresh all students' payment data to ensure consistency
+                if (selectedScheduleForAttendance) {
+                  await refreshStudentPayments(selectedScheduleForAttendance.class_id)
+                }
+              }
+              setCreatePaymentModalOpen(false)
+            } catch (error) {
+              console.error('Error creating payment:', error)
+              alert('Помилка створення платежу: ' + (error instanceof Error ? error.message : String(error)))
+            }
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.student') || 'Студент'}</label>
+              <Select value={paymentForm.student_id} disabled>
+                <option value={paymentForm.student_id}>
+                  {students.find(s => s.id === paymentForm.student_id)?.student_first_name} {students.find(s => s.id === paymentForm.student_id)?.student_last_name}
+                </option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.class') || 'Клас'}</label>
+              <Select value={paymentForm.class_id} disabled>
+                <option value={paymentForm.class_id}>{classes.find(c => c.id === paymentForm.class_id)?.name}</option>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.packageType') || 'Тип пакету'}</label>
+              <Select
+                value={paymentForm.package_type_id}
+                onChange={(e) => {
+                  const pkg = classPackageTypes.find(pt => pt.id === e.target.value)
+                  setPaymentForm({
+                    ...paymentForm,
+                    package_type_id: e.target.value,
+                    available_lesson_count: pkg?.lesson_count ?? 0,
+                  })
+                }}
+              >
+                <option value="">{t('payments.selectPackageType') || 'Виберіть тип пакету'}</option>
+                {classPackageTypes.length === 0 && (
+                  <option value="" disabled>
+                    {t('payments.selectClassFirst') || 'Спочатку виберіть клас'}
+                  </option>
+                )}
+                {classPackageTypes.map(pt => (
+                  <option key={pt.id} value={pt.id}>{pt.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.availableLessons') || 'Доступні уроки'}</label>
+              <Input type="number" value={paymentForm.available_lesson_count} readOnly disabled />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.status') || 'Статус'}</label>
+              <Select value={paymentForm.status} onChange={(e) => setPaymentForm({ ...paymentForm, status: e.target.value })}>
+                <option value="paid">{t('payments.paid') || 'Оплачено'}</option>
+                <option value="pending">{t('payments.pending') || 'Очікується'}</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.paymentType') || 'Тип платежу'}</label>
+              <Select value={paymentForm.type} onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}>
+                <option value="cash">{t('payments.cash') || 'Готівка'}</option>
+                <option value="card">{t('payments.card') || 'Картка'}</option>
+                <option value="test">{t('payments.test') || 'Тест'}</option>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setCreatePaymentModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" variant="success" disabled={!paymentForm.student_id || !paymentForm.class_id || !paymentForm.package_type_id}>
+              {t('payments.addPayment') || 'Додати платіж'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Day Details Modal */}
+      <Modal
+        isOpen={isDayDetailsModalOpen}
+        onClose={() => {
+          setIsDayDetailsModalOpen(false)
+          setSelectedDateForDetails('')
+          setDayAttendanceData([])
+        }}
+        title={t('schedules.dayDetails') || `Деталі дня ${selectedDateForDetails ? moment(selectedDateForDetails).format('DD.MM.YYYY') : ''}`}
+        size="xl"
+      >
+        {loadingDayDetails ? (
+          <div className="p-8 text-center text-gray-600">{t('common.loading')}</div>
+        ) : dayAttendanceData.length === 0 ? (
+          <div className="p-8 text-center text-gray-600">
+            {t('schedules.noAttendanceForDay') || 'Немає відвідуваності для цього дня'}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {dayAttendanceData.map((classData) => (
+              <div key={classData.class_id} className="border rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {classData.class_name}
+                </h3>
+                {classData.students.length === 0 ? (
+                  <p className="text-sm text-gray-500">{t('schedules.noStudents') || 'Немає студентів'}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
+                            {t('students.studentName') || 'Студент'}
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
+                            {t('attendances.status') || 'Статус'}
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
+                            {t('attendances.comment') || 'Коментар'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {classData.students.map((student) => (
+                          <tr key={student.id}>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {student.student_first_name} {student.student_last_name}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <span className={`inline-block px-2 py-1 rounded text-xs ${
+                                student.status === 'present'
+                                  ? 'bg-green-100 text-green-800'
+                                  : student.status === 'absent with valid reason'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {student.status === 'present'
+                                  ? (t('attendances.present') || 'Присутній')
+                                  : student.status === 'absent with valid reason'
+                                  ? (t('attendances.absentValidReason') || 'Відсутній з поважною причиною')
+                                  : (t('attendances.absent') || 'Відсутній')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">
+                              {student.comment || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   )

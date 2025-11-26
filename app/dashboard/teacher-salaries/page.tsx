@@ -205,7 +205,7 @@ export default function TeacherSalariesPage() {
               disabled={filteredSalaries.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('teacherSalaries.addSalary')}
           </Button>
@@ -391,7 +391,7 @@ export default function TeacherSalariesPage() {
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit">
+            <Button type="submit" variant={editingSalary ? "default" : "success"}>
               {editingSalary ? t('common.saveChanges') : t('teacherSalaries.addSalary')}
             </Button>
           </div>

@@ -180,40 +180,135 @@ export default function AttendancesPage() {
     }
   }
 
-  const checkStudentPayment = async (studentId: string): Promise<{ id: string; available_lesson_count: number; student_presence_ids: string[] | null } | null> => {
+  const checkStudentPayment = async (studentId: string, classId: string): Promise<{ id: string; available_lesson_count: number; student_presence_ids: string[] | null; status: string } | null> => {
     try {
-      const { data, error } = await supabase
+      // Get all payments for this student and class
+      const { data: allPayments } = await supabase
         .from('payments')
-        .select('id, available_lesson_count, student_presence_ids')
+        .select('id, available_lesson_count, student_presence_ids, status, created_at')
         .eq('student_id', studentId)
-        .eq('status', 'paid')
-        // Do not filter by available_lesson_count here; caller can decide
+        .eq('class_id', classId)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (error || !data) return null
-      return data
-    } catch {
+      
+      if (!allPayments || allPayments.length === 0) {
+        return null
+      }
+      
+      // Find the payment with the most available lessons
+      // Prioritize paid payments if they have the same lesson count as pending
+      const paymentsWithLessons = allPayments.filter(p => p.available_lesson_count > 0)
+      
+      if (paymentsWithLessons.length > 0) {
+        // Sort by: 1) available_lesson_count (desc), 2) status (paid first), 3) created_at (desc)
+        paymentsWithLessons.sort((a, b) => {
+          if (a.available_lesson_count !== b.available_lesson_count) {
+            return b.available_lesson_count - a.available_lesson_count
+          }
+          if (a.status !== b.status) {
+            return a.status === 'paid' ? -1 : 1
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+        
+        const bestPayment = paymentsWithLessons[0]
+        return {
+          id: bestPayment.id,
+          available_lesson_count: bestPayment.available_lesson_count,
+          student_presence_ids: bestPayment.student_presence_ids,
+          status: bestPayment.status
+        }
+      }
+      
+      // If no payments with lessons, return the most recent payment (even if 0)
+      const mostRecent = allPayments[0]
+      return {
+        id: mostRecent.id,
+        available_lesson_count: mostRecent.available_lesson_count,
+        student_presence_ids: mostRecent.student_presence_ids,
+        status: mostRecent.status
+      }
+    } catch (error) {
+      console.error('Error in checkStudentPayment:', error)
       return null
     }
   }
 
   const getLatestPaymentForClass = async (studentId: string, classId: string) => {
     try {
-      const { data } = await supabase
+      // Get all payments for this student and class
+      const { data: allPayments } = await supabase
         .from('payments')
-        .select('id, available_lesson_count')
+        .select('id, available_lesson_count, status, created_at')
         .eq('student_id', studentId)
         .eq('class_id', classId)
-        .eq('status', 'paid')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-      return data || null
-    } catch {
+      
+      console.log(`Payments for student ${studentId}, class ${classId}:`, allPayments)
+      
+      if (!allPayments || allPayments.length === 0) {
+        console.log(`No payments found for student ${studentId}, class ${classId}`)
+        return null
+      }
+      
+      // Find the payment with the most available lessons
+      // Prioritize paid payments if they have the same lesson count as pending
+      const paymentsWithLessons = allPayments.filter(p => p.available_lesson_count > 0)
+      
+      if (paymentsWithLessons.length > 0) {
+        // Sort by: 1) available_lesson_count (desc), 2) status (paid first), 3) created_at (desc)
+        paymentsWithLessons.sort((a, b) => {
+          if (a.available_lesson_count !== b.available_lesson_count) {
+            return b.available_lesson_count - a.available_lesson_count
+          }
+          if (a.status !== b.status) {
+            return a.status === 'paid' ? -1 : 1
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+        
+        const bestPayment = paymentsWithLessons[0]
+        console.log(`Returning payment with ${bestPayment.available_lesson_count} lessons (status: ${bestPayment.status})`)
+        return {
+          id: bestPayment.id,
+          available_lesson_count: bestPayment.available_lesson_count,
+          status: bestPayment.status
+        }
+      }
+      
+      // If no payments with lessons, return the most recent payment (even if 0)
+      const mostRecent = allPayments[0]
+      console.log(`No payments with lessons found, returning most recent payment with ${mostRecent.available_lesson_count} lessons`)
+      return {
+        id: mostRecent.id,
+        available_lesson_count: mostRecent.available_lesson_count,
+        status: mostRecent.status
+      }
+    } catch (error) {
+      console.error('Error in getLatestPaymentForClass:', error)
       return null
     }
+  }
+
+  const refreshStudentPayments = async (classId: string) => {
+    if (!classId) return
+    
+    const selectedClass = classes.find(c => c.id === classId)
+    if (!selectedClass) return
+
+    const classStudents = students.filter(s => selectedClass.student_ids.includes(s.id))
+    const lessonsMap: Record<string, number> = {}
+    for (const student of classStudents) {
+      const payment = await getLatestPaymentForClass(student.id, classId)
+      const lessonCount = payment?.available_lesson_count ?? 0
+      console.log(`Refreshing student ${student.id}: found payment with ${lessonCount} lessons`)
+      lessonsMap[student.id] = lessonCount
+    }
+    console.log('Updated lessons map:', lessonsMap)
+    setStudentAvailableLessons(prev => {
+      const updated = { ...prev, ...lessonsMap }
+      console.log('Final lessons map:', updated)
+      return updated
+    })
   }
 
   const handleClassChange = async (classId: string) => {
@@ -252,22 +347,44 @@ export default function AttendancesPage() {
         if (oldPresences) {
           for (const presence of oldPresences) {
             if (presence.status !== 'absent with valid reason') {
-              const { data: payment } = await supabase
+              // Try to restore to paid payment first
+              const { data: paidPayment } = await supabase
                 .from('payments')
                 .select('id, available_lesson_count')
                 .eq('student_id', presence.student_id)
+                .eq('class_id', editingAttendance.class_id)
                 .eq('status', 'paid')
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .single()
 
-              if (payment) {
+              if (paidPayment) {
                 await supabase
                   .from('payments')
                   .update({
-                    available_lesson_count: payment.available_lesson_count + 1,
+                    available_lesson_count: paidPayment.available_lesson_count + 1,
                   })
-                  .eq('id', payment.id)
+                  .eq('id', paidPayment.id)
+              } else {
+                // If no paid payment, restore to pending payment
+                const { data: pendingPayment } = await supabase
+                  .from('payments')
+                  .select('id, available_lesson_count')
+                  .eq('student_id', presence.student_id)
+                  .eq('class_id', editingAttendance.class_id)
+                  .eq('status', 'pending')
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .single()
+
+                if (pendingPayment) {
+                  await supabase
+                    .from('payments')
+                    .update({
+                      available_lesson_count: pendingPayment.available_lesson_count + 1,
+                    })
+                    .eq('id', pendingPayment.id)
+                }
               }
             }
           }
@@ -324,14 +441,21 @@ export default function AttendancesPage() {
 
         // Update payment available_lesson_count
         if (presence.status !== 'absent with valid reason' && presenceData) {
-          const payment = await checkStudentPayment(studentId)
+          const payment = await checkStudentPayment(studentId, formData.class_id)
           if (payment) {
+            const newLessonCount = Math.max(0, payment.available_lesson_count - 1)
+            const updateData: {
+              available_lesson_count: number
+              student_presence_ids: string[]
+            } = {
+              available_lesson_count: newLessonCount,
+              student_presence_ids: [...(payment.student_presence_ids || []), presenceData.id],
+            }
+            
+            // Payment status should remain unchanged - only manager can change it
             await supabase
               .from('payments')
-              .update({
-                available_lesson_count: Math.max(0, payment.available_lesson_count - 1),
-                student_presence_ids: [...(payment.student_presence_ids || []), presenceData.id],
-              })
+              .update(updateData)
               .eq('id', payment.id)
           }
         }
@@ -367,6 +491,15 @@ export default function AttendancesPage() {
     if (!confirm('Ви впевнені, що хочете видалити цю відвідуваність? Це також змінить кількість доступних уроків.')) return
 
     try {
+      // Get attendance to get class_id
+      const { data: attendance } = await supabase
+        .from('attendances')
+        .select('class_id')
+        .eq('id', id)
+        .single()
+
+      if (!attendance) return
+
       // Get presences before deleting
       const { data: presences } = await supabase
         .from('student_presences')
@@ -377,22 +510,44 @@ export default function AttendancesPage() {
       if (presences) {
         for (const presence of presences) {
           if (presence.status !== 'absent with valid reason') {
-            const { data: payment } = await supabase
+            // Try to restore to paid payment first
+            const { data: paidPayment } = await supabase
               .from('payments')
               .select('id, available_lesson_count')
               .eq('student_id', presence.student_id)
+              .eq('class_id', attendance.class_id)
               .eq('status', 'paid')
               .order('created_at', { ascending: false })
               .limit(1)
               .single()
 
-            if (payment) {
+            if (paidPayment) {
               await supabase
                 .from('payments')
                 .update({
-                  available_lesson_count: payment.available_lesson_count + 1,
+                  available_lesson_count: paidPayment.available_lesson_count + 1,
                 })
-                .eq('id', payment.id)
+                .eq('id', paidPayment.id)
+            } else {
+              // If no paid payment, restore to pending payment
+              const { data: pendingPayment } = await supabase
+                .from('payments')
+                .select('id, available_lesson_count')
+                .eq('student_id', presence.student_id)
+                .eq('class_id', attendance.class_id)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single()
+
+              if (pendingPayment) {
+                await supabase
+                  .from('payments')
+                  .update({
+                    available_lesson_count: pendingPayment.available_lesson_count + 1,
+                  })
+                  .eq('id', pendingPayment.id)
+              }
             }
           }
         }
@@ -482,7 +637,7 @@ export default function AttendancesPage() {
               disabled={filteredAttendances.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('attendances.addAttendance')}
           </Button>
@@ -652,8 +807,8 @@ export default function AttendancesPage() {
         title={editingAttendance ? t('attendances.editAttendance') : t('attendances.addAttendance')}
         size="xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col h-full space-y-4">
+          <div className="grid grid-cols-2 gap-4 flex-shrink-0">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('attendances.date')} *
@@ -687,17 +842,17 @@ export default function AttendancesPage() {
             </div>
           </div>
 
-        {selectedClassStudents.length > 0 && (
-          <div>
+        {selectedClassStudents.length > 0 ? (
+          <div className="flex flex-col flex-1 min-h-0">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {t('attendances.students')}
             </label>
-            <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-4">
+            <div className="space-y-2 flex-1 overflow-y-auto border rounded p-4">
               {selectedClassStudents.map((student) => (
                 <div key={student.id} className="flex items-center gap-4 p-2 border-b">
                   <div className="flex-1">
                     <p className="font-medium">{student.student_first_name} {student.student_last_name}</p>
-                    <div className="mt-1 text-sm">
+                    <div className="mt-1 text-sm flex items-center gap-2">
                       <span className={`inline-block px-2 py-0.5 rounded ${
                         (studentAvailableLessons[student.id] ?? 0) === 0
                           ? 'bg-red-100 text-red-800'
@@ -712,7 +867,6 @@ export default function AttendancesPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="ml-2"
                           onClick={async () => {
                             // Prefill payment form for this student and selected class
                             setPaymentForm({
@@ -776,15 +930,37 @@ export default function AttendancesPage() {
               ))}
             </div>
           </div>
+        ) : formData.class_id && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              {t('attendances.noStudents')}
+            </p>
+          </div>
         )}
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
-              Скасувати
-            </Button>
-            <Button type="submit">
-              {editingAttendance ? 'Зберегти зміни' : 'Додати відвідуваність'}
-            </Button>
+          <div className="flex flex-col gap-2 flex-shrink-0 pt-4 border-t">
+            {!editingAttendance && selectedClassStudents.length > 0 && selectedClassStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1) && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                <p className="text-sm text-red-800">
+                  {t('attendances.studentsWithoutPayment')}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
+                Скасувати
+              </Button>
+              <Button 
+                type="submit" 
+                variant={editingAttendance ? "default" : "success"}
+                disabled={
+                  selectedClassStudents.length === 0 || 
+                  (!editingAttendance && selectedClassStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1))
+                }
+              >
+                {editingAttendance ? 'Зберегти зміни' : 'Додати відвідуваність'}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>
@@ -792,7 +968,16 @@ export default function AttendancesPage() {
       {/* Create Payment Modal */}
       <Modal
         isOpen={createPaymentModalOpen}
-        onClose={() => setCreatePaymentModalOpen(false)}
+        onClose={async () => {
+          setCreatePaymentModalOpen(false)
+          // Small delay to ensure database transaction is committed
+          await new Promise(resolve => setTimeout(resolve, 100))
+          // Refresh payment data when modal closes
+          if (formData.class_id) {
+            console.log('Modal closed, refreshing payments for class:', formData.class_id)
+            await refreshStudentPayments(formData.class_id)
+          }
+        }}
         title={t('payments.addPayment')}
         size="lg"
       >
@@ -800,17 +985,77 @@ export default function AttendancesPage() {
           onSubmit={async (e) => {
             e.preventDefault()
             try {
-              const { error } = await supabase
+              // Ensure available_lesson_count is set from package type
+              const finalPaymentForm = { ...paymentForm }
+              
+              // Always fetch the package type from database to ensure we have the latest data
+              if (finalPaymentForm.package_type_id) {
+                const { data: pkgData, error: pkgError } = await supabase
+                  .from('package_types')
+                  .select('lesson_count')
+                  .eq('id', finalPaymentForm.package_type_id)
+                  .single()
+                
+                if (pkgError) {
+                  console.error('Error fetching package type:', pkgError)
+                  // Fallback to local data
+                  const pkg = classPackageTypes.find(pt => pt.id === finalPaymentForm.package_type_id)
+                  if (pkg && pkg.lesson_count > 0) {
+                    finalPaymentForm.available_lesson_count = pkg.lesson_count
+                  }
+                } else if (pkgData && pkgData.lesson_count > 0) {
+                  finalPaymentForm.available_lesson_count = pkgData.lesson_count
+                }
+              }
+              
+              // Validate that we have a valid lesson count
+              if (!finalPaymentForm.package_type_id || finalPaymentForm.available_lesson_count <= 0) {
+                alert('Будь ласка, виберіть тип пакету з доступними уроками')
+                return
+              }
+              
+              console.log('Creating payment with:', finalPaymentForm)
+              
+              const { data: newPayment, error } = await supabase
                 .from('payments')
-                .insert([paymentForm])
-              if (error) throw error
-              // Refresh lessons map for the student
-              const latest = await getLatestPaymentForClass(paymentForm.student_id, paymentForm.class_id)
-              setStudentAvailableLessons(prev => ({ ...prev, [paymentForm.student_id]: latest?.available_lesson_count ?? 0 }))
+                .insert([finalPaymentForm])
+                .select()
+                .single()
+              
+              if (error) {
+                console.error('Error inserting payment:', error)
+                throw error
+              }
+              
+              console.log('Payment created:', newPayment)
+              
+              // Verify the payment was created correctly by fetching it back
+              if (newPayment) {
+                const { data: verifyPayment, error: verifyError } = await supabase
+                  .from('payments')
+                  .select('id, available_lesson_count, status')
+                  .eq('id', newPayment.id)
+                  .single()
+                
+                console.log('Verified payment from database:', verifyPayment, verifyError)
+                
+                const lessonCount = verifyPayment?.available_lesson_count ?? newPayment.available_lesson_count ?? 0
+                console.log(`Setting lesson count to: ${lessonCount}`)
+                
+                setStudentAvailableLessons(prev => ({ 
+                  ...prev, 
+                  [paymentForm.student_id]: lessonCount
+                }))
+                
+                // Also refresh all students' payment data to ensure consistency
+                if (formData.class_id) {
+                  await refreshStudentPayments(formData.class_id)
+                }
+              }
               setCreatePaymentModalOpen(false)
             } catch (error) {
               console.error('Error creating payment:', error)
-              alert('Помилка створення платежу')
+              alert('Помилка створення платежу: ' + (error instanceof Error ? error.message : String(error)))
             }
           }}
           className="space-y-4"
@@ -882,7 +1127,7 @@ export default function AttendancesPage() {
             <Button type="button" variant="outline" onClick={() => setCreatePaymentModalOpen(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" disabled={!paymentForm.student_id || !paymentForm.class_id || !paymentForm.package_type_id}>
+            <Button type="submit" variant="success" disabled={!paymentForm.student_id || !paymentForm.class_id || !paymentForm.package_type_id}>
               {t('payments.addPayment')}
             </Button>
           </div>

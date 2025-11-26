@@ -186,7 +186,7 @@ export default function ExpendituresPage() {
               disabled={filteredExpenditures.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('expenditures.addExpenditure')}
           </Button>
@@ -391,7 +391,7 @@ export default function ExpendituresPage() {
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit">
+            <Button type="submit" variant={editingExpenditure ? "default" : "success"}>
               {editingExpenditure ? t('common.saveChanges') : t('expenditures.addExpenditure')}
             </Button>
           </div>

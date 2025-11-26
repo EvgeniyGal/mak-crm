@@ -23,7 +23,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       />
       <div
         className={cn(
-          'relative bg-white rounded-lg shadow-lg z-50 max-h-[90vh] overflow-y-auto',
+          'relative bg-white rounded-lg shadow-lg z-50 flex flex-col max-h-[90vh]',
           {
             'w-full max-w-sm': size === 'sm',
             'w-full max-w-md': size === 'md',
@@ -33,7 +33,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         )}
       >
         {title && (
-          <div className="flex items-center justify-between p-6 border-b">
+          <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
             <h2 className="text-xl font-semibold">{title}</h2>
             <button
               onClick={onClose}
@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             </button>
           </div>
         )}
-        <div className={cn(title ? 'p-6' : 'p-6')}>
+        <div className={cn('p-6', size === 'xl' || size === 'lg' ? 'flex-1 overflow-y-auto' : '')}>
           {children}
         </div>
       </div>

@@ -115,7 +115,12 @@ export default function StudentAbsenteesPage() {
       const classIdsInRange = [...new Set(attendances?.map(a => a.class_id) || [])]
 
       // Get student presences for these attendances
-      let presences: any[] = []
+      interface StudentPresence {
+        student_id: string
+        attendance_id: string
+        status: string
+      }
+      let presences: StudentPresence[] = []
       if (attendanceIds.length > 0) {
         const { data: presencesData } = await supabase
           .from('student_presences')
