@@ -89,7 +89,7 @@ export default function StudentPaymentsPage() {
 
       // Get classes for selection
       const { data: classesData, error: classesError } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
         .eq('status', 'active')
 

@@ -77,7 +77,7 @@ export default function TeachersPage() {
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
         .eq('status', 'active')
 
@@ -246,7 +246,7 @@ export default function TeachersPage() {
               disabled={filteredTeachers.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('teachers.addTeacher')}
           </Button>
@@ -384,7 +384,7 @@ export default function TeachersPage() {
           </div>
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
@@ -392,7 +392,7 @@ export default function TeachersPage() {
               {t('common.previous')}
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
@@ -531,7 +531,7 @@ export default function TeachersPage() {
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit">
+            <Button type="submit" variant={editingTeacher ? "default" : "success"}>
               {editingTeacher ? t('common.save') : t('teachers.addTeacher')}
             </Button>
           </div>

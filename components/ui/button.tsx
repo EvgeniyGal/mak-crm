@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'success'
   size?: 'default' | 'sm' | 'lg' | 'icon'
 }
 
@@ -16,9 +16,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           {
             'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus-visible:ring-blue-500 shadow-sm': variant === 'default',
             'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 shadow-sm': variant === 'destructive',
-            'border-2 border-gray-400 bg-white text-gray-900 hover:bg-gray-50 hover:border-gray-500 active:bg-gray-100 focus-visible:ring-blue-500 shadow-sm': variant === 'outline',
-            'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 focus-visible:ring-gray-500 shadow-sm': variant === 'secondary',
-            'bg-transparent text-gray-900 hover:bg-gray-100 active:bg-gray-200 focus-visible:ring-gray-500': variant === 'ghost',
+            'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 focus-visible:ring-green-500 shadow-sm': variant === 'success',
+            'border-2 border-gray-300 bg-gray-100 text-gray-900 hover:bg-gray-200 hover:border-gray-400 active:bg-gray-300 focus-visible:ring-blue-500 shadow-sm': variant === 'outline',
+            'bg-gray-300 text-gray-900 hover:bg-gray-400 active:bg-gray-500 focus-visible:ring-gray-500 shadow-sm': variant === 'secondary',
+            'bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200 focus-visible:ring-gray-500 border border-gray-200': variant === 'ghost',
             'bg-transparent text-blue-600 underline-offset-4 hover:underline hover:text-blue-700 active:text-blue-800 focus-visible:ring-blue-500': variant === 'link',
           },
           {

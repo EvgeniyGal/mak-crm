@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { calculateAge, formatDate } from '@/lib/utils'
+import { formatAge, formatDate } from '@/lib/utils'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
@@ -52,6 +52,15 @@ export default function StudentAbsenteesPage() {
   const [dateRangeEnd, setDateRangeEnd] = useState(() => {
     return new Date().toISOString().split('T')[0]
   })
+  const [tempDateRangeStart, setTempDateRangeStart] = useState(() => {
+    const date = new Date()
+    date.setMonth(0)
+    date.setDate(1)
+    return date.toISOString().split('T')[0]
+  })
+  const [tempDateRangeEnd, setTempDateRangeEnd] = useState(() => {
+    return new Date().toISOString().split('T')[0]
+  })
   const [classFilter, setClassFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('student_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
@@ -65,7 +74,7 @@ export default function StudentAbsenteesPage() {
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
         .eq('status', 'active')
 
@@ -106,10 +115,14 @@ export default function StudentAbsenteesPage() {
       const classIdsInRange = [...new Set(attendances?.map(a => a.class_id) || [])]
 
       // Get student presences for these attendances
-      const { data: presences } = await supabase
-        .from('student_presences')
-        .select('student_id, attendance_id, status')
-        .in('attendance_id', attendanceIds.length > 0 ? attendanceIds : [''])
+      let presences: any[] = []
+      if (attendanceIds.length > 0) {
+        const { data: presencesData } = await supabase
+          .from('student_presences')
+          .select('student_id, attendance_id, status')
+          .in('attendance_id', attendanceIds)
+        presences = presencesData || []
+      }
 
       // Build absence data
       const absenteeList: AbsenteeData[] = []
@@ -127,33 +140,35 @@ export default function StudentAbsenteesPage() {
           enrolledClassIds.includes(a.class_id)
         ) || []
 
+        if (studentAttendances.length === 0) continue
+
         // Get presences for this student
-        const studentPresences = presences?.filter(p => 
+        const studentPresences = presences.filter(p => 
           p.student_id === student.id
-        ) || []
+        )
 
-        // Check if student has any presences (attended any class)
-        const hasAnyPresence = studentPresences.length > 0
-
-        // Calculate total absences (attendances without presence)
+        // Calculate total absences (attendances without presence OR with status 'absent' or 'absent with valid reason')
         let totalAbsences = 0
         let lastAttendanceDate: string | null = null
 
         for (const attendance of studentAttendances) {
-          const hasPresence = studentPresences.some(p => p.attendance_id === attendance.id)
-          if (!hasPresence) {
+          const presence = studentPresences.find(p => p.attendance_id === attendance.id)
+          if (!presence) {
+            // No presence record = absent
             totalAbsences++
-          } else {
-            // Find the latest attendance date
-            const presence = studentPresences.find(p => p.attendance_id === attendance.id)
-            if (presence && (!lastAttendanceDate || attendance.date > lastAttendanceDate)) {
+          } else if (presence.status === 'absent' || presence.status === 'absent with valid reason') {
+            // Has presence record but status is absent = absent
+            totalAbsences++
+          } else if (presence.status === 'present') {
+            // Student was present, update last attendance date
+            if (!lastAttendanceDate || attendance.date > lastAttendanceDate) {
               lastAttendanceDate = attendance.date
             }
           }
         }
 
-        // Only include if student has absences or never attended
-        if (totalAbsences > 0 || !hasAnyPresence) {
+        // Only include if student has absences
+        if (totalAbsences > 0) {
           const enrolledClasses = enrolledClassIds
             .map((raw: string) => {
               const match = classes.find(c => c.id === raw)
@@ -197,6 +212,15 @@ export default function StudentAbsenteesPage() {
       fetchAbsentees()
     }
   }, [dateRangeStart, dateRangeEnd, classFilter, fetchAbsentees])
+
+  // Sync temp dates with actual dates when they change externally
+  useEffect(() => {
+    setTempDateRangeStart(dateRangeStart)
+  }, [dateRangeStart])
+
+  useEffect(() => {
+    setTempDateRangeEnd(dateRangeEnd)
+  }, [dateRangeEnd])
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
@@ -291,8 +315,19 @@ export default function StudentAbsenteesPage() {
             </label>
             <Input
               type="date"
-              value={dateRangeStart}
-              onChange={(e) => setDateRangeStart(e.target.value)}
+              value={tempDateRangeStart}
+              onChange={(e) => setTempDateRangeStart(e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value) {
+                  setDateRangeStart(e.target.value)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && tempDateRangeStart) {
+                  setDateRangeStart(tempDateRangeStart)
+                  e.currentTarget.blur()
+                }
+              }}
             />
           </div>
           <div>
@@ -301,8 +336,19 @@ export default function StudentAbsenteesPage() {
             </label>
             <Input
               type="date"
-              value={dateRangeEnd}
-              onChange={(e) => setDateRangeEnd(e.target.value)}
+              value={tempDateRangeEnd}
+              onChange={(e) => setTempDateRangeEnd(e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value) {
+                  setDateRangeEnd(e.target.value)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && tempDateRangeEnd) {
+                  setDateRangeEnd(tempDateRangeEnd)
+                  e.currentTarget.blur()
+                }
+              }}
             />
           </div>
         </div>
@@ -390,7 +436,7 @@ export default function StudentAbsenteesPage() {
                     {student.student_first_name} {student.student_last_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {calculateAge(student.student_date_of_birth)}
+                    {formatAge(student.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort'))}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.parent_first_name} {student.parent_middle_name || ''}

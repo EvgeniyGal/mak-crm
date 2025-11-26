@@ -190,7 +190,7 @@ export default function AnalyticsPage() {
 
       // Attendance by class
       const { data: classes } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
         .eq('status', 'active')
 

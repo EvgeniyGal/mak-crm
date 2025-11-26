@@ -18,7 +18,7 @@ export function ExportButton({ onExportXLS, onExportCSV, disabled = false }: Exp
   return (
     <div className="relative">
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}

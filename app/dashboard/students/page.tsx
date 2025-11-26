@@ -35,11 +35,6 @@ interface Class {
   room_id: string | null
   student_ids: string[]
   status?: string
-}
-
-interface Room {
-  id: string
-  name: string
   capacity: number
 }
 
@@ -49,7 +44,6 @@ export default function StudentsPage() {
   const { isOwner } = useOwner()
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
-  const [rooms, setRooms] = useState<Room[]>([])
   const [classCapacities, setClassCapacities] = useState<Record<string, { available: number; total: number; isFull: boolean }>>({})
   const [, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -93,12 +87,12 @@ export default function StudentsPage() {
     }
   }, [supabase])
 
-  const fetchClasses = useCallback(async () => {
+  const fetchCourses = useCallback(async () => {
     try {
-      // Fetch all classes (not just active) to show names for enrolled classes
+      // Fetch all courses (not just active) to show names for enrolled courses
       const { data, error } = await supabase
-        .from('classes')
-        .select('id, name, room_id, student_ids, status')
+        .from('courses')
+        .select('id, name, room_id, student_ids, status, capacity')
 
       if (error) throw error
       setClasses(data || [])
@@ -107,57 +101,33 @@ export default function StudentsPage() {
     }
   }, [supabase])
 
-  const fetchRooms = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('rooms')
-        .select('id, name, capacity')
-
-      if (error) throw error
-      setRooms(data || [])
-    } catch (error) {
-      console.error('Error fetching rooms:', error)
-    }
-  }, [supabase])
-
   const calculateCapacities = useCallback(() => {
     const capacities: Record<string, { available: number; total: number; isFull: boolean }> = {}
     
     classes.forEach(cls => {
-      if (!cls.room_id) {
-        capacities[cls.id] = { available: Infinity, total: Infinity, isFull: false }
-        return
-      }
-
-      const room = rooms.find(r => r.id === cls.room_id)
-      if (!room) {
-        capacities[cls.id] = { available: 0, total: 0, isFull: true }
-        return
-      }
-
       const enrolledCount = cls.student_ids?.length || 0
-      const available = room.capacity - enrolledCount
+      const capacity = cls.capacity || 0
+      const available = capacity - enrolledCount
       
       capacities[cls.id] = {
         available: Math.max(0, available),
-        total: room.capacity,
+        total: capacity,
         isFull: available <= 0,
       }
     })
 
     setClassCapacities(capacities)
-  }, [classes, rooms])
+  }, [classes])
 
   useEffect(() => {
     const loadData = async () => {
       await Promise.all([
         fetchStudents(),
-        fetchClasses(),
-        fetchRooms()
+        fetchCourses()
       ])
     }
     loadData()
-  }, [fetchStudents, fetchClasses, fetchRooms])
+  }, [fetchStudents, fetchCourses])
 
   useEffect(() => {
     calculateCapacities()
@@ -170,8 +140,8 @@ export default function StudentsPage() {
     for (const classId of formData.enrolled_class_ids) {
       const capacity = classCapacities[classId]
       if (capacity && capacity.isFull && !editingStudent?.enrolled_class_ids.includes(classId)) {
-        const className = classes.find(c => c.id === classId)?.name || classId
-        alert(`Клас "${className}" заповнений. Неможливо додати студента.`)
+        const courseName = classes.find(c => c.id === classId)?.name || classId
+        alert(`Курс "${courseName}" заповнений. Неможливо додати студента.`)
         return
       }
     }
@@ -207,7 +177,7 @@ export default function StudentsPage() {
             if (cls) {
               const updatedStudentIds = (cls.student_ids || []).filter(id => id !== studentId)
               await supabase
-                .from('classes')
+                .from('courses')
                 .update({ student_ids: updatedStudentIds })
                 .eq('id', classId)
             }
@@ -221,7 +191,7 @@ export default function StudentsPage() {
             if (cls) {
               const updatedStudentIds = [...(cls.student_ids || []), studentId].filter(Boolean)
               await supabase
-                .from('classes')
+                .from('courses')
                 .update({ student_ids: updatedStudentIds })
                 .eq('id', classId)
             }
@@ -243,7 +213,7 @@ export default function StudentsPage() {
           if (cls && newStudent) {
             const updatedStudentIds = [...(cls.student_ids || []), newStudent.id]
             await supabase
-              .from('classes')
+              .from('courses')
               .update({ student_ids: updatedStudentIds })
               .eq('id', classId)
           }
@@ -251,7 +221,7 @@ export default function StudentsPage() {
       }
 
       await fetchStudents()
-      await fetchClasses() // Refresh classes to update capacities
+      await fetchCourses() // Refresh courses to update capacities
       setIsModalOpen(false)
       resetForm()
     } catch (error) {
@@ -409,7 +379,7 @@ export default function StudentsPage() {
               disabled={sortedStudents.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('students.addStudent')}
           </Button>
@@ -625,7 +595,7 @@ export default function StudentsPage() {
           </div>
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
@@ -633,7 +603,7 @@ export default function StudentsPage() {
               Попередня
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
@@ -836,7 +806,7 @@ export default function StudentsPage() {
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               Скасувати
             </Button>
-            <Button type="submit">
+            <Button type="submit" variant={editingStudent ? "default" : "success"}>
               {editingStudent ? 'Зберегти зміни' : 'Додати студента'}
             </Button>
           </div>

@@ -43,7 +43,7 @@ export default function ClassAttendancesPage() {
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
         .eq('status', 'active')
         .order('name')
@@ -69,7 +69,7 @@ export default function ClassAttendancesPage() {
 
       // Get class info
       const { data: classData, error: classError } = await supabase
-        .from('classes')
+        .from('courses')
         .select('student_ids')
         .eq('id', selectedClassId)
         .single()
@@ -283,13 +283,13 @@ export default function ClassAttendancesPage() {
         <div className="flex gap-4">
           <div className="w-64">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('classes.title')}
+              {t('courses.title')}
             </label>
             <Select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
             >
-              <option value="">{t('classes.selectClass')}</option>
+              <option value="">{t('courses.selectCourse')}</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>
                   {cls.name}

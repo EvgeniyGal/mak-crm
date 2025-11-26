@@ -13,7 +13,7 @@ import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 
-interface Class {
+interface Course {
   id: string
   name: string
   teachers_ids: string[]
@@ -21,6 +21,7 @@ interface Class {
   schedule_ids: string[]
   student_ids: string[]
   status: string
+  capacity: number
   created_at: string
 }
 
@@ -33,7 +34,6 @@ interface Teacher {
 interface Room {
   id: string
   name: string
-  capacity: number
 }
 
 interface Student {
@@ -51,17 +51,36 @@ interface PackageType {
   status: string
 }
 
-export default function ClassesPage() {
+interface Schedule {
+  week_day: number
+  start_time: string
+  end_time: string
+}
+
+export default function CoursesPage() {
   const supabase = createClient()
   const { t } = useTranslation()
   const { isOwner } = useOwner()
-  const [classes, setClasses] = useState<Class[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [packageTypes, setPackageTypes] = useState<PackageType[]>([])
-  const [pendingPackages, setPendingPackages] = useState<Omit<PackageType, 'id' | 'class_id'>[]>([]) // For new classes
+  const [pendingPackages, setPendingPackages] = useState<Omit<PackageType, 'id' | 'class_id'>[]>([]) // For new courses
+  const [pendingSchedules, setPendingSchedules] = useState<Schedule[]>([]) // For new courses
   const [showPackageForm, setShowPackageForm] = useState(false)
+  const [showScheduleForm, setShowScheduleForm] = useState(false)
+  
+  const weekDays = [
+    t('schedules.sunday'),
+    t('schedules.monday'),
+    t('schedules.tuesday'),
+    t('schedules.wednesday'),
+    t('schedules.thursday'),
+    t('schedules.friday'),
+    t('schedules.saturday'),
+  ]
+  
   interface PackageTypeWithIndex extends Omit<PackageType, 'id' | 'class_id'> {
     id?: string | number
     class_id?: string
@@ -73,9 +92,15 @@ export default function ClassesPage() {
     lesson_count: 0,
     status: 'active',
   })
+  const [scheduleFormData, setScheduleFormData] = useState({
+    week_day: 0,
+    start_time: '',
+    end_time: '',
+  })
+  const [editingScheduleIndex, setEditingScheduleIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingClass, setEditingClass] = useState<Class | null>(null)
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -87,17 +112,18 @@ export default function ClassesPage() {
     room_id: '',
     student_ids: [] as string[],
     status: 'active',
+    capacity: 20,
   })
 
-  const fetchClasses = useCallback(async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('*')
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setClasses(data || [])
+      setCourses(data || [])
     } catch (error) {
       console.error('Error fetching classes:', error)
     } finally {
@@ -147,43 +173,43 @@ export default function ClassesPage() {
   }, [supabase])
 
   const fetchPackageTypes = useCallback(async () => {
-    const classId = editingClass?.id || (formData.name ? classes.find(c => c.name === formData.name)?.id : null)
-    if (!classId) return
+    const courseId = editingCourse?.id || (formData.name ? courses.find(c => c.name === formData.name)?.id : null)
+    if (!courseId) return
 
     try {
       const { data, error } = await supabase
         .from('package_types')
         .select('*')
-        .eq('class_id', classId)
+        .eq('class_id', courseId)
 
       if (error) throw error
       setPackageTypes(data || [])
     } catch (error) {
       console.error('Error fetching package types:', error)
     }
-  }, [supabase, editingClass, formData.name, classes])
+  }, [supabase, editingCourse, formData.name, courses])
 
   useEffect(() => {
-    fetchClasses()
+    fetchCourses()
     fetchTeachers()
     fetchRooms()
     fetchStudents()
-  }, [fetchClasses, fetchTeachers, fetchRooms, fetchStudents])
+  }, [fetchCourses, fetchTeachers, fetchRooms, fetchStudents])
 
   useEffect(() => {
-    if (editingClass || formData.name) {
+    if (editingCourse || formData.name) {
       fetchPackageTypes()
     }
-  }, [editingClass, formData.name, fetchPackageTypes])
+  }, [editingCourse, formData.name, fetchPackageTypes])
 
   const handleCreatePackageType = async () => {
-    if (!formData.name) {
-      alert('Спочатку введіть назву класу')
+    if (!formData.name && !editingCourse) {
+      alert('Спочатку введіть назву курсу')
       return
     }
 
-    // If editing existing class, save to database immediately
-    if (editingClass?.id) {
+    // If editing existing course, save to database immediately
+    if (editingCourse?.id) {
       try {
         if (editingPackageType) {
           // Update existing package type
@@ -199,12 +225,12 @@ export default function ClassesPage() {
 
           if (error) throw error
         } else {
-          // Create new package type for existing class
+          // Create new package type for existing course
           const { error } = await supabase
             .from('package_types')
             .insert([{
               ...packageFormData,
-              class_id: editingClass.id,
+              class_id: editingCourse.id,
             }])
 
           if (error) throw error
@@ -221,10 +247,10 @@ export default function ClassesPage() {
         setEditingPackageType(null)
       } catch (error) {
         console.error('Error saving package type:', error)
-        alert(t('classes.errorSavingPackage'))
+        alert(t('courses.errorSavingPackage'))
       }
     } else {
-      // For new class, store in pending packages
+      // For new course, store in pending packages
       if (editingPackageType && editingPackageType.id !== undefined) {
         // Update pending package using stored index
         const index = editingPackageType.id
@@ -255,10 +281,10 @@ export default function ClassesPage() {
       id: 'id' in pkg ? pkg.id : undefined,
       class_id: 'class_id' in pkg ? pkg.class_id : undefined
     }
-    // Store index for pending packages
-    if (index !== undefined && !editingClass) {
-      pkgToEdit.id = index
-    }
+      // Store index for pending packages
+      if (index !== undefined && !editingCourse) {
+        pkgToEdit.id = index
+      }
     setEditingPackageType(pkgToEdit)
     setPackageFormData({
       name: pkg.name,
@@ -270,7 +296,7 @@ export default function ClassesPage() {
   }
 
   const handleDeletePackageType = async (pkgId: string | number) => {
-    if (!confirm(t('classes.confirmDeletePackage'))) {
+    if (!confirm(t('courses.confirmDeletePackage'))) {
       return
     }
 
@@ -291,7 +317,7 @@ export default function ClassesPage() {
       await fetchPackageTypes()
     } catch (error) {
       console.error('Error deleting package type:', error)
-      alert(t('classes.errorDeletingPackage'))
+      alert(t('courses.errorDeletingPackage'))
     }
   }
 
@@ -306,23 +332,63 @@ export default function ClassesPage() {
     setShowPackageForm(false)
   }
 
-  const getAvailableSeats = (classItem: Class) => {
-    if (!classItem.room_id) return 0
-    const room = rooms.find(r => r.id === classItem.room_id)
-    if (!room) return 0
-    return room.capacity - (classItem.student_ids?.length || 0)
+  const handleCreateSchedule = () => {
+    if (!scheduleFormData.start_time) {
+      alert('Будь ласка, введіть час початку')
+      return
+    }
+
+    if (editingScheduleIndex !== null) {
+      // Update existing schedule
+      const updated = [...pendingSchedules]
+      updated[editingScheduleIndex] = scheduleFormData
+      setPendingSchedules(updated)
+    } else {
+      // Add new schedule
+      setPendingSchedules([...pendingSchedules, scheduleFormData])
+    }
+
+    setScheduleFormData({
+      week_day: 0,
+      start_time: '',
+      end_time: '',
+    })
+    setShowScheduleForm(false)
+    setEditingScheduleIndex(null)
+  }
+
+  const handleEditSchedule = (index: number) => {
+    setEditingScheduleIndex(index)
+    setScheduleFormData(pendingSchedules[index])
+    setShowScheduleForm(true)
+  }
+
+  const handleDeleteSchedule = (index: number) => {
+    setPendingSchedules(pendingSchedules.filter((_, i) => i !== index))
+  }
+
+  const handleCancelScheduleEdit = () => {
+    setScheduleFormData({
+      week_day: 0,
+      start_time: '',
+      end_time: '',
+    })
+    setShowScheduleForm(false)
+    setEditingScheduleIndex(null)
+  }
+
+  const getAvailableSeats = (courseItem: Course) => {
+    const enrolledCount = courseItem.student_ids?.length || 0
+    return Math.max(0, (courseItem.capacity || 0) - enrolledCount)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     // Check capacity
-    if (formData.room_id) {
-      const room = rooms.find(r => r.id === formData.room_id)
-      if (room && formData.student_ids.length > room.capacity) {
-        alert(t('classes.capacityError') + `: ${room.capacity} ${t('students.student')}`)
-        return
-      }
+    if (formData.student_ids.length > formData.capacity) {
+      alert(t('courses.capacityError') + `: ${formData.capacity} ${t('students.student')}`)
+      return
     }
 
     try {
@@ -332,73 +398,92 @@ export default function ClassesPage() {
         schedule_ids: [], // Will be handled separately
       }
 
-      let classId: string
-      if (editingClass) {
+      let courseId: string
+      if (editingCourse) {
         const { error } = await supabase
-          .from('classes')
+          .from('courses')
           .update(submitData)
-          .eq('id', editingClass.id)
+          .eq('id', editingCourse.id)
         if (error) throw error
-        classId = editingClass.id
+        courseId = editingCourse.id
       } else {
         const { data, error } = await supabase
-          .from('classes')
+          .from('courses')
           .insert([submitData])
           .select()
         if (error) throw error
-        classId = data[0].id
+        courseId = data[0].id
         
-        // Create pending packages for the new class
+        // Create pending packages for the new course
         if (pendingPackages.length > 0) {
           const packagesToInsert = pendingPackages.map(pkg => ({
             ...pkg,
-            class_id: classId,
+            class_id: courseId,
           }))
           const { error: packagesError } = await supabase
             .from('package_types')
             .insert(packagesToInsert)
           if (packagesError) {
             console.error('Error creating packages:', packagesError)
-            // Continue even if packages fail - class is already created
+            // Continue even if packages fail - course is already created
+          }
+        }
+        
+        // Create pending schedules for the new course
+        if (pendingSchedules.length > 0) {
+          const schedulesToInsert = pendingSchedules.map(schedule => ({
+            class_id: courseId,
+            room_id: formData.room_id || null,
+            time_slot: schedule.start_time,
+            end_time: schedule.end_time || null,
+            week_day: schedule.week_day,
+          }))
+          const { error: schedulesError } = await supabase
+            .from('schedules')
+            .insert(schedulesToInsert)
+          if (schedulesError) {
+            console.error('Error creating schedules:', schedulesError)
+            // Continue even if schedules fail - course is already created
           }
         }
       }
 
-      await fetchClasses()
+      await fetchCourses()
       setIsModalOpen(false)
       resetForm()
     } catch (error) {
-      console.error('Error saving class:', error)
-      alert(t('classes.errorSaving'))
+      console.error('Error saving course:', error)
+      alert(t('courses.errorSaving'))
     }
   }
 
-  const handleEdit = (classItem: Class) => {
-    setEditingClass(classItem)
-    setPendingPackages([]) // Clear pending packages when editing existing class
+  const handleEdit = (courseItem: Course) => {
+    setEditingCourse(courseItem)
+    setPendingPackages([]) // Clear pending packages when editing existing course
     setFormData({
-      name: classItem.name,
-      teachers_ids: classItem.teachers_ids,
-      room_id: classItem.room_id || '',
-      student_ids: classItem.student_ids,
-      status: classItem.status,
+      name: courseItem.name,
+      teachers_ids: courseItem.teachers_ids,
+      room_id: courseItem.room_id || '',
+      student_ids: courseItem.student_ids,
+      status: courseItem.status,
+      capacity: courseItem.capacity || 20,
     })
     setIsModalOpen(true)
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('classes.confirmDelete'))) return
+    if (!confirm(t('courses.confirmDelete'))) return
 
     try {
       const { error } = await supabase
-        .from('classes')
+        .from('courses')
         .delete()
         .eq('id', id)
       if (error) throw error
-      await fetchClasses()
+      await fetchCourses()
     } catch (error) {
-      console.error('Error deleting class:', error)
-      alert(t('classes.errorDeleting'))
+      console.error('Error deleting course:', error)
+      alert(t('courses.errorDeleting'))
     }
   }
 
@@ -409,42 +494,50 @@ export default function ClassesPage() {
       room_id: '',
       student_ids: [],
       status: 'active',
+      capacity: 20,
     })
-    setEditingClass(null)
+    setEditingCourse(null)
     setEditingPackageType(null)
     setPendingPackages([])
+    setPendingSchedules([])
     setPackageFormData({
       name: '',
       amount: 0,
       lesson_count: 0,
       status: 'active',
     })
+    setScheduleFormData({
+      week_day: 0,
+      start_time: '',
+      end_time: '',
+    })
     setShowPackageForm(false)
+    setShowScheduleForm(false)
+    setEditingScheduleIndex(null)
   }
 
-  const selectedRoom = rooms.find(r => r.id === formData.room_id)
-  const availableSeats = selectedRoom ? selectedRoom.capacity - formData.student_ids.length : 0
+  const availableSeats = formData.capacity - formData.student_ids.length
 
-  const filteredClasses = classes.filter((classItem) => {
+  const filteredCourses = courses.filter((courseItem) => {
     const matchesSearch =
       searchTerm === '' ||
-      classItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      classItem.teachers_ids.some(tId => {
+      courseItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      courseItem.teachers_ids.some(tId => {
         const teacher = teachers.find(t => t.id === tId)
         return teacher && `${teacher.first_name} ${teacher.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
       })
 
-    const matchesStatus = statusFilter === 'all' || classItem.status === statusFilter
+    const matchesStatus = statusFilter === 'all' || courseItem.status === statusFilter
 
     return matchesSearch && matchesStatus
   })
 
-  const paginatedClasses = filteredClasses.slice(
+  const paginatedCourses = filteredCourses.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   )
 
-  const totalPages = Math.ceil(filteredClasses.length / itemsPerPage)
+  const totalPages = Math.ceil(filteredCourses.length / itemsPerPage)
 
   const getTeacherName = (teacherId: string) => {
     const teacher = teachers.find(t => t.id === teacherId)
@@ -464,28 +557,28 @@ export default function ClassesPage() {
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
-      { header: t('classes.className'), accessor: (row) => row.name },
-      { header: t('classes.teachers'), accessor: (row) => row.teachers_ids.map(getTeacherName).join(', ') || '-' },
-      { header: t('classes.room'), accessor: (row) => getRoomName(row.room_id) },
-      { header: t('classes.students'), accessor: (row) => row.student_ids?.length || 0 },
-      { header: t('classes.freePlaces'), accessor: (row) => getAvailableSeats(row) },
-      { header: t('classes.status'), accessor: (row) => row.status },
+      { header: t('courses.courseName'), accessor: (row) => row.name },
+      { header: t('courses.teachers'), accessor: (row) => row.teachers_ids.map(getTeacherName).join(', ') || '-' },
+      { header: t('courses.room'), accessor: (row) => getRoomName(row.room_id) },
+      { header: t('courses.students'), accessor: (row) => row.student_ids?.length || 0 },
+      { header: t('courses.freePlaces'), accessor: (row) => getAvailableSeats(row) },
+      { header: t('courses.status'), accessor: (row) => row.status },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
-    exportToXLS(filteredClasses, columns, 'classes')
+    exportToXLS(filteredCourses, columns, 'courses')
   }
 
   const handleExportCSV = () => {
     const columns: ExportColumn[] = [
-      { header: t('classes.className'), accessor: (row) => row.name },
-      { header: t('classes.teachers'), accessor: (row) => row.teachers_ids.map(getTeacherName).join(', ') || '-' },
-      { header: t('classes.room'), accessor: (row) => getRoomName(row.room_id) },
-      { header: t('classes.students'), accessor: (row) => row.student_ids?.length || 0 },
-      { header: t('classes.freePlaces'), accessor: (row) => getAvailableSeats(row) },
-      { header: t('classes.status'), accessor: (row) => row.status },
+      { header: t('courses.courseName'), accessor: (row) => row.name },
+      { header: t('courses.teachers'), accessor: (row) => row.teachers_ids.map(getTeacherName).join(', ') || '-' },
+      { header: t('courses.room'), accessor: (row) => getRoomName(row.room_id) },
+      { header: t('courses.students'), accessor: (row) => row.student_ids?.length || 0 },
+      { header: t('courses.freePlaces'), accessor: (row) => getAvailableSeats(row) },
+      { header: t('courses.status'), accessor: (row) => row.status },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
-    exportToCSV(filteredClasses, columns, 'classes')
+    exportToCSV(filteredCourses, columns, 'courses')
   }
 
   if (loading) {
@@ -495,18 +588,18 @@ export default function ClassesPage() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('classes.title')}</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('courses.title')}</h1>
         <div className="flex gap-2">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
               onExportCSV={handleExportCSV}
-              disabled={filteredClasses.length === 0}
+              disabled={filteredCourses.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
-            {t('classes.addClass')}
+            {t('courses.addCourse')}
           </Button>
         </div>
       </div>
@@ -517,7 +610,7 @@ export default function ClassesPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Пошук за назвою класу або вчителем..."
+              placeholder="Пошук за назвою курсу або вчителем..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -543,22 +636,22 @@ export default function ClassesPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('classes.className')}
+                  {t('courses.courseName')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('classes.teachers')}
+                  {t('courses.teachers')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('classes.room')}
+                  {t('courses.room')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('classes.students')}
+                  {t('courses.students')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('classes.freePlaces')}
+                  {t('courses.freePlaces')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('classes.status')}
+                  {t('courses.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('common.actions')}
@@ -566,52 +659,52 @@ export default function ClassesPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedClasses.map((classItem) => {
-                const available = getAvailableSeats(classItem)
+              {paginatedCourses.map((courseItem) => {
+                const available = getAvailableSeats(courseItem)
                 return (
-                  <tr key={classItem.id}>
+                  <tr key={courseItem.id}>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">
-                      {classItem.name}
+                      {courseItem.name}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {classItem.teachers_ids.length > 0
-                        ? classItem.teachers_ids.map(id => getTeacherName(id)).join(', ')
+                      {courseItem.teachers_ids.length > 0
+                        ? courseItem.teachers_ids.map(id => getTeacherName(id)).join(', ')
                         : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {getRoomName(classItem.room_id)}
+                      {getRoomName(courseItem.room_id)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {classItem.student_ids.length > 0
-                        ? classItem.student_ids.slice(0, 3).map(id => getStudentName(id)).join(', ')
+                      {courseItem.student_ids.length > 0
+                        ? courseItem.student_ids.slice(0, 3).map(id => getStudentName(id)).join(', ')
                         : '-'}
-                      {classItem.student_ids.length > 3 && ` +${classItem.student_ids.length - 3}`}
+                      {courseItem.student_ids.length > 3 && ` +${courseItem.student_ids.length - 3}`}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         available > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
-                        {available} / {classItem.room_id ? rooms.find(r => r.id === classItem.room_id)?.capacity || 0 : 0}
+                        {available} / {courseItem.capacity || 0}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs rounded-full ${
-                        classItem.status === 'active' ? 'bg-green-100 text-green-800' :
-                        classItem.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+                        courseItem.status === 'active' ? 'bg-green-100 text-green-800' :
+                        courseItem.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {classItem.status}
+                        {courseItem.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
-                        onClick={() => handleEdit(classItem)}
+                        onClick={() => handleEdit(courseItem)}
                         className="text-blue-600 hover:text-blue-900 mr-3"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(classItem.id)}
+                        onClick={() => handleDelete(courseItem.id)}
                         className="text-red-600 hover:text-red-900"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -641,12 +734,12 @@ export default function ClassesPage() {
               <option value="50">50</option>
             </Select>
             <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredClasses.length)} з {filteredClasses.length}
+              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredCourses.length)} з {filteredCourses.length}
             </span>
           </div>
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
@@ -654,7 +747,7 @@ export default function ClassesPage() {
               Попередня
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
@@ -669,69 +762,105 @@ export default function ClassesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); resetForm() }}
-        title={editingClass ? t('classes.editClass') : t('classes.addClass')}
+        title={editingCourse ? t('courses.editCourse') : t('courses.addCourse')}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('classes.className')} *
+              {t('courses.courseName')} *
             </label>
             <Input
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
+              className="bg-blue-50 focus:bg-white"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('classes.room')}
+                {t('courses.room')}
               </label>
               <Select
                 value={formData.room_id}
                 onChange={(e) => setFormData({ ...formData, room_id: e.target.value })}
+                className="bg-green-50 focus:bg-white"
               >
-                <option value="">{t('classes.selectRoom')}</option>
+                <option value="">{t('courses.selectRoom')}</option>
                 {rooms.map((room) => (
                   <option key={room.id} value={room.id}>
-                    {room.name} (місткість: {room.capacity})
+                    {room.name}
                   </option>
                 ))}
               </Select>
-              {selectedRoom && (
-                <div className="mt-2 text-sm text-gray-600">
-                  Місткість: {selectedRoom.capacity} | Вільні місця: {availableSeats}
-                  {availableSeats <= 0 && (
-                    <span className="ml-2 text-red-600 font-semibold">Клас заповнений!</span>
-                  )}
-                </div>
-              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('classes.status')} *
+                {t('courses.capacity')} *
               </label>
-              <Select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={formData.capacity}
+                onChange={(e) => {
+                  const value = e.target.value
+                  const numValue = Number(value)
+                  // Only allow positive integers greater than 0, or empty string while typing
+                  if (value === '' || (Number.isInteger(numValue) && numValue > 0)) {
+                    setFormData({ ...formData, capacity: value === '' ? 1 : numValue })
+                  }
+                }}
+                onBlur={(e) => {
+                  // Ensure value is at least 1 when field loses focus
+                  const value = Number(e.target.value)
+                  if (!value || value < 1 || !Number.isInteger(value)) {
+                    setFormData({ ...formData, capacity: 1 })
+                  }
+                }}
+                onKeyDown={(e) => {
+                  // Prevent decimal point, minus sign, and 'e' (scientific notation)
+                  if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault()
+                  }
+                }}
                 required
-              >
-                <option value="active">{t('common.active')}</option>
-                <option value="paused">{t('classes.pause')}</option>
-                <option value="archive">{t('classes.archive')}</option>
-              </Select>
+                className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-purple-50 focus:bg-white"
+              />
+              <div className="mt-2 text-sm text-gray-600">
+                Вільні місця: {availableSeats}
+                {availableSeats <= 0 && (
+                  <span className="ml-2 text-red-600 font-semibold">Курс заповнений!</span>
+                )}
+              </div>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('classes.teachers')}
+              {t('courses.status')} *
             </label>
-            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
+            <Select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              required
+              className="bg-yellow-50 focus:bg-white"
+            >
+              <option value="active">{t('common.active')}</option>
+              <option value="paused">{t('courses.pause')}</option>
+              <option value="archive">{t('courses.archive')}</option>
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('courses.teachers')}
+            </label>
+            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2 bg-indigo-50">
               {teachers.map((teacher) => (
-                <label key={teacher.id} className="flex items-center">
+                <label key={teacher.id} className="flex items-center p-1 rounded hover:bg-indigo-100">
                   <input
                     type="checkbox"
                     checked={formData.teachers_ids.includes(teacher.id)}
@@ -759,24 +888,27 @@ export default function ClassesPage() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-gray-700">
-                {t('classes.packageTypes')}
+                {t('courses.packageTypes')}
               </label>
-              {formData.name && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowPackageForm(!showPackageForm)}
-                >
-                  {showPackageForm ? t('common.cancel') : t('classes.addPackage')}
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant={showPackageForm ? "outline" : "success"}
+                size="sm"
+                onClick={() => setShowPackageForm(!showPackageForm)}
+                disabled={!formData.name && !editingCourse}
+                title={!formData.name && !editingCourse ? 'Спочатку введіть назву курсу' : ''}
+              >
+                {showPackageForm ? t('common.cancel') : t('courses.addPackage')}
+              </Button>
             </div>
-            {showPackageForm && formData.name && (
+            {!formData.name && !editingCourse && (
+              <p className="text-sm text-gray-500 mb-2">Введіть назву курсу, щоб додати типи пакетів</p>
+            )}
+            {showPackageForm && (formData.name || editingCourse) && (
               <div className="mb-4 p-4 border-2 border-gray-400 rounded-lg bg-gray-50">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-900">
-                    {editingPackageType ? t('classes.editPackage') : t('classes.addPackage')}
+                    {editingPackageType ? t('courses.editPackage') : t('courses.addPackage')}
                   </h3>
                   {editingPackageType && (
                     <Button
@@ -791,16 +923,17 @@ export default function ClassesPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('classes.packageName')} *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('courses.packageName')} *</label>
                     <Input
                       value={packageFormData.name}
                       onChange={(e) => setPackageFormData({ ...packageFormData, name: e.target.value })}
                       placeholder="Напр. Базовий пакет"
+                      className="bg-blue-50 focus:bg-white"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('classes.amountZeroHint')}
+                      {t('courses.amountZeroHint')}
                     </label>
                     <Input
                       type="number"
@@ -809,15 +942,17 @@ export default function ClassesPage() {
                       value={packageFormData.amount}
                       onChange={(e) => setPackageFormData({ ...packageFormData, amount: Number(e.target.value) })}
                       placeholder="0.00"
+                      className="bg-green-50 focus:bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('classes.lessonCount')} *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('courses.lessonCount')} *</label>
                     <Input
                       type="number"
                       min="1"
                       value={packageFormData.lesson_count}
                       onChange={(e) => setPackageFormData({ ...packageFormData, lesson_count: Number(e.target.value) })}
+                      className="bg-purple-50 focus:bg-white"
                     />
                   </div>
                   <div>
@@ -825,6 +960,7 @@ export default function ClassesPage() {
                     <Select
                       value={packageFormData.status}
                       onChange={(e) => setPackageFormData({ ...packageFormData, status: e.target.value })}
+                      className="bg-yellow-50 focus:bg-white"
                     >
                       <option value="active">Активний</option>
                       <option value="archive">Архів</option>
@@ -834,10 +970,11 @@ export default function ClassesPage() {
                 <div className="flex gap-2 mt-4">
                   <Button
                     type="button"
+                    variant={editingPackageType ? "default" : "success"}
                     onClick={handleCreatePackageType}
                     disabled={!packageFormData.name || packageFormData.amount < 0 || packageFormData.lesson_count <= 0}
                   >
-                    {editingPackageType ? t('common.save') : t('classes.addPackage')}
+                    {editingPackageType ? t('common.save') : t('courses.addPackage')}
                   </Button>
                   {editingPackageType && (
                     <Button
@@ -852,8 +989,8 @@ export default function ClassesPage() {
               </div>
             )}
             <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-white">
-              {/* Show existing packages for editing class */}
-              {editingClass && packageTypes.filter(pt => pt.class_id === editingClass.id).map((pkg) => (
+              {/* Show existing packages for editing course */}
+              {editingCourse && packageTypes.filter(pt => pt.class_id === editingCourse.id).map((pkg) => (
                 <div key={pkg.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
                   <div className="flex-1">
                     <span className="text-sm font-medium text-gray-900">{pkg.name}</span>
@@ -882,8 +1019,8 @@ export default function ClassesPage() {
                   </div>
                 </div>
               ))}
-              {/* Show pending packages for new class */}
-              {!editingClass && pendingPackages.map((pkg, index) => (
+              {/* Show pending packages for new course */}
+              {!editingCourse && pendingPackages.map((pkg, index) => (
                 <div key={index} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
                   <div className="flex-1">
                     <span className="text-sm font-medium text-gray-900">{pkg.name}</span>
@@ -912,28 +1049,152 @@ export default function ClassesPage() {
                   </div>
                 </div>
               ))}
-              {((editingClass && packageTypes.filter(pt => pt.class_id === editingClass.id).length === 0) ||
-                (!editingClass && pendingPackages.length === 0)) && (
+              {((editingCourse && packageTypes.filter(pt => pt.class_id === editingCourse.id).length === 0) ||
+                (!editingCourse && pendingPackages.length === 0)) && (
                 <p className="text-sm text-gray-500 text-center py-2">Немає типів пакетів</p>
               )}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('classes.students')} {availableSeats >= 0 && `(${formData.student_ids.length} / ${selectedRoom?.capacity || '∞'})`}
-            </label>
-            {availableSeats <= 0 && formData.room_id && (
-              <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm">
-                Клас заповнений! Неможливо додати більше студентів.
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                {t('schedules.title')}
+              </label>
+              {!editingCourse && (
+                <Button
+                  type="button"
+                  variant={showScheduleForm ? "outline" : "success"}
+                  size="sm"
+                  onClick={() => setShowScheduleForm(!showScheduleForm)}
+                >
+                  {showScheduleForm ? t('common.cancel') : t('schedules.addSchedule')}
+                </Button>
+              )}
+            </div>
+            {showScheduleForm && !editingCourse && (
+              <div className="mb-4 p-4 border-2 border-gray-400 rounded-lg bg-gray-50">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {editingScheduleIndex !== null ? t('schedules.editSchedule') : t('schedules.addSchedule')}
+                  </h3>
+                  {editingScheduleIndex !== null && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCancelScheduleEdit}
+                    >
+                      Скасувати
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedules.weekDay')} *</label>
+                    <Select
+                      value={scheduleFormData.week_day.toString()}
+                      onChange={(e) => setScheduleFormData({ ...scheduleFormData, week_day: Number(e.target.value) })}
+                      className="bg-blue-50 focus:bg-white"
+                    >
+                      {weekDays.map((day, idx) => (
+                        <option key={idx} value={idx}>
+                          {day}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedules.startTime')} *</label>
+                    <Input
+                      type="time"
+                      value={scheduleFormData.start_time}
+                      onChange={(e) => setScheduleFormData({ ...scheduleFormData, start_time: e.target.value })}
+                      className="bg-green-50 focus:bg-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedules.endTime')}</label>
+                    <Input
+                      type="time"
+                      value={scheduleFormData.end_time}
+                      onChange={(e) => setScheduleFormData({ ...scheduleFormData, end_time: e.target.value })}
+                      className="bg-purple-50 focus:bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    type="button"
+                    variant={editingScheduleIndex !== null ? "default" : "success"}
+                    onClick={handleCreateSchedule}
+                    disabled={!scheduleFormData.start_time}
+                  >
+                    {editingScheduleIndex !== null ? t('common.save') : t('schedules.addSchedule')}
+                  </Button>
+                  {editingScheduleIndex !== null && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCancelScheduleEdit}
+                    >
+                      Скасувати
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
-            <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
+            <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-white">
+              {pendingSchedules.map((schedule, index) => (
+                <div key={index} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">{weekDays[schedule.week_day]}</span>
+                    <span className="text-sm text-gray-600 ml-2">
+                      {schedule.start_time} {schedule.end_time ? `- ${schedule.end_time}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditSchedule(index)}
+                      className="text-blue-600 hover:text-blue-800 p-1"
+                      title="Редагувати"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSchedule(index)}
+                      className="text-red-600 hover:text-red-800 p-1"
+                      title="Видалити"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pendingSchedules.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-2">Немає розкладу</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('courses.students')} ({formData.student_ids.length} / {formData.capacity})
+            </label>
+            {availableSeats <= 0 && (
+              <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm">
+                Курс заповнений! Неможливо додати більше студентів.
+              </div>
+            )}
+            <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2 bg-pink-50">
               {students.map((student) => {
                 const isSelected = formData.student_ids.includes(student.id)
-                const canSelect = !formData.room_id || availableSeats > 0 || isSelected
+                const canSelect = availableSeats > 0 || isSelected
                 return (
-                  <label key={student.id} className={`flex items-center ${!canSelect ? 'opacity-50' : ''}`}>
+                  <label key={student.id} className={`flex items-center p-1 rounded hover:bg-pink-100 ${!canSelect ? 'opacity-50' : ''}`}>
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -964,8 +1225,8 @@ export default function ClassesPage() {
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit">
-              {editingClass ? t('common.save') : t('classes.addClass')}
+            <Button type="submit" variant={editingCourse ? "default" : "success"}>
+              {editingCourse ? t('common.save') : t('courses.addCourse')}
             </Button>
           </div>
         </form>

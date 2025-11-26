@@ -15,7 +15,6 @@ import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 interface Room {
   id: string
   name: string
-  capacity: number
   created_at: string
 }
 
@@ -39,7 +38,6 @@ export default function RoomsPage() {
 
   const [formData, setFormData] = useState({
     name: '',
-    capacity: 10,
   })
 
   const fetchRooms = useCallback(async () => {
@@ -58,23 +56,23 @@ export default function RoomsPage() {
     }
   }, [supabase])
 
-  const fetchClasses = useCallback(async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name, room_id')
 
       if (error) throw error
       setClasses(data || [])
     } catch (error) {
-      console.error('Error fetching classes:', error)
+      console.error('Error fetching courses:', error)
     }
   }, [supabase])
 
   useEffect(() => {
     fetchRooms()
-    fetchClasses()
-  }, [fetchRooms, fetchClasses])
+    fetchCourses()
+  }, [fetchRooms, fetchCourses])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -105,7 +103,6 @@ export default function RoomsPage() {
     setEditingRoom(room)
     setFormData({
       name: room.name,
-      capacity: room.capacity,
     })
     setIsModalOpen(true)
   }
@@ -129,7 +126,6 @@ export default function RoomsPage() {
   const resetForm = () => {
     setFormData({
       name: '',
-      capacity: 10,
     })
     setEditingRoom(null)
   }
@@ -152,7 +148,6 @@ export default function RoomsPage() {
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
       { header: t('rooms.roomName'), accessor: (row) => row.name },
-      { header: t('rooms.capacity'), accessor: (row) => row.capacity },
       { header: t('rooms.classes'), accessor: (row) => getClassesForRoom(row.id) },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
@@ -162,7 +157,6 @@ export default function RoomsPage() {
   const handleExportCSV = () => {
     const columns: ExportColumn[] = [
       { header: t('rooms.roomName'), accessor: (row) => row.name },
-      { header: t('rooms.capacity'), accessor: (row) => row.capacity },
       { header: t('rooms.classes'), accessor: (row) => getClassesForRoom(row.id) },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
@@ -185,7 +179,7 @@ export default function RoomsPage() {
               disabled={rooms.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }}>
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
             {t('rooms.addRoom')}
           </Button>
@@ -202,9 +196,6 @@ export default function RoomsPage() {
                   {t('rooms.roomName')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('rooms.capacity')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('rooms.classes')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -219,9 +210,6 @@ export default function RoomsPage() {
                   <tr key={room.id}>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">
                       {room.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {room.capacity}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {assignedClasses.length > 0
@@ -271,7 +259,7 @@ export default function RoomsPage() {
           </div>
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
@@ -279,7 +267,7 @@ export default function RoomsPage() {
               {t('common.previous')}
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
@@ -308,23 +296,11 @@ export default function RoomsPage() {
               required
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('rooms.capacity')} *
-            </label>
-            <Input
-              type="number"
-              min="1"
-              value={formData.capacity}
-              onChange={(e) => setFormData({ ...formData, capacity: Number(e.target.value) })}
-              required
-            />
-          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit">
+            <Button type="submit" variant={editingRoom ? "default" : "success"}>
               {editingRoom ? t('common.save') : t('rooms.addRoom')}
             </Button>
           </div>

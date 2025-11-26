@@ -137,7 +137,7 @@ export default function DashboardPage() {
         .not('enrolled_class_ids', 'is', null)
 
       const { data: classesData } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
 
       const { data: attendancesData } = await supabase

@@ -127,7 +127,7 @@ export default function SchedulesPage() {
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name, teachers_ids, room_id')
         .eq('status', 'active')
 

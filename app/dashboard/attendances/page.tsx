@@ -103,7 +103,7 @@ export default function AttendancesPage() {
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name, student_ids')
         .eq('status', 'active')
 
@@ -506,7 +506,7 @@ export default function AttendancesPage() {
             onChange={(e) => setClassFilter(e.target.value)}
             className="w-48"
           >
-            <option value="all">{t('common.all')} {t('classes.title')}</option>
+            <option value="all">{t('common.all')} {t('courses.title')}</option>
             {classes.map((cls) => (
               <option key={cls.id} value={cls.id}>
                 {cls.name}

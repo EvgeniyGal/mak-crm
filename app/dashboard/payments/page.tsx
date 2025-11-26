@@ -23,7 +23,7 @@ interface Payment {
   available_lesson_count: number
   created_at: string
   students?: { student_first_name: string; student_last_name: string }
-  classes?: { name: string }
+  courses?: { name: string }
   package_types?: { name: string; amount: number; lesson_count: number }
 }
 
@@ -79,7 +79,7 @@ export default function PaymentsPage() {
         .select(`
           *,
           students(student_first_name, student_last_name),
-          classes(name),
+          courses!class_id(name),
           package_types(name, amount, lesson_count)
         `)
         .order('created_at', { ascending: false })
@@ -110,7 +110,7 @@ export default function PaymentsPage() {
   const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
+        .from('courses')
         .select('id, name')
 
       if (error) throw error
@@ -230,7 +230,7 @@ export default function PaymentsPage() {
     const matchesSearch =
       searchTerm === '' ||
       `${payment.students?.student_first_name} ${payment.students?.student_last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.classes?.name.toLowerCase().includes(searchTerm.toLowerCase())
+      payment.courses?.name.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter
     const matchesType = typeFilter === 'all' || payment.type === typeFilter
@@ -252,11 +252,11 @@ export default function PaymentsPage() {
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
       { header: t('payments.student'), accessor: (row) => `${row.students?.student_first_name || ''} ${row.students?.student_last_name || ''}`.trim() },
-      { header: t('payments.class'), accessor: (row) => row.classes?.name || '' },
+      { header: t('payments.class'), accessor: (row) => row.courses?.name || '' },
       { header: t('payments.packageType'), accessor: (row) => row.package_types?.name || '' },
       { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
-      { header: t('common.status'), accessor: (row) => row.status },
-      { header: t('payments.paymentType'), accessor: (row) => row.type },
+      { header: t('common.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : t('payments.pending') },
+      { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.test') },
       { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
@@ -266,11 +266,11 @@ export default function PaymentsPage() {
   const handleExportCSV = () => {
     const columns: ExportColumn[] = [
       { header: t('payments.student'), accessor: (row) => `${row.students?.student_first_name || ''} ${row.students?.student_last_name || ''}`.trim() },
-      { header: t('payments.class'), accessor: (row) => row.classes?.name || '' },
+      { header: t('payments.class'), accessor: (row) => row.courses?.name || '' },
       { header: t('payments.packageType'), accessor: (row) => row.package_types?.name || '' },
       { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
-      { header: t('common.status'), accessor: (row) => row.status },
-      { header: t('payments.paymentType'), accessor: (row) => row.type },
+      { header: t('common.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : t('payments.pending') },
+      { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.test') },
       { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
@@ -376,7 +376,7 @@ export default function PaymentsPage() {
                     {payment.students ? `${payment.students.student_first_name} ${payment.students.student_last_name}` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.classes?.name || '-'}
+                    {payment.courses?.name || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {payment.package_types?.name || '-'}
@@ -388,11 +388,11 @@ export default function PaymentsPage() {
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {payment.status}
+                      {payment.status === 'paid' ? t('payments.paid') : t('payments.pending')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.type}
+                    {payment.type === 'cash' ? t('payments.cash') : payment.type === 'card' ? t('payments.card') : t('payments.test')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`font-medium ${

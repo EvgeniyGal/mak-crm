@@ -19,6 +19,41 @@ export function ageInYears(dateOfBirth: Date | string): number {
   return Math.max(0, Math.round(years * 10) / 10)
 }
 
+export function formatAge(dateOfBirth: Date | string, yearsLabel: string, monthsLabel: string): string {
+  const dob = typeof dateOfBirth === 'string' ? new Date(dateOfBirth) : dateOfBirth
+  const now = new Date()
+  
+  let years = now.getFullYear() - dob.getFullYear()
+  let months = now.getMonth() - dob.getMonth()
+  
+  if (months < 0) {
+    years--
+    months += 12
+  }
+  
+  if (now.getDate() < dob.getDate()) {
+    months--
+    if (months < 0) {
+      years--
+      months += 12
+    }
+  }
+  
+  if (years === 0 && months === 0) {
+    return `0${monthsLabel}`
+  }
+  
+  if (years === 0) {
+    return `${months}${monthsLabel}`
+  }
+  
+  if (months === 0) {
+    return `${years}${yearsLabel}`
+  }
+  
+  return `${years}${yearsLabel} ${months}${monthsLabel}`
+}
+
 export function formatDate(date: Date | string | null): string {
   if (!date) return ''
   const d = typeof date === 'string' ? new Date(date) : date
