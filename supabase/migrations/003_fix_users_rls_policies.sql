@@ -10,6 +10,9 @@ DROP POLICY IF EXISTS "Users can select their own record" ON public.users;
 DROP POLICY IF EXISTS "Users can update their own record" ON public.users;
 DROP POLICY IF EXISTS "Owners can update users" ON public.users;
 DROP POLICY IF EXISTS "Owners can delete users" ON public.users;
+-- Drop combined policies if they exist (from previous migrations)
+DROP POLICY IF EXISTS "Users can select their own record or approved users can view all" ON public.users;
+DROP POLICY IF EXISTS "Users can update their own record or owners can update all" ON public.users;
 
 -- Create a security definer function to check user status without RLS recursion
 CREATE OR REPLACE FUNCTION public.is_user_approved(user_id UUID)
@@ -62,7 +65,8 @@ AS $$
 BEGIN
   -- Security check: ensure user_id matches authenticated user
   -- Allow if auth.uid() is NULL (during signup) OR matches user_id
-  IF auth.uid() IS NOT NULL AND auth.uid() != user_id THEN
+  -- Using (select auth.uid()) to cache the result for better performance
+  IF (select auth.uid()) IS NOT NULL AND (select auth.uid()) != user_id THEN
     RAISE EXCEPTION 'Cannot create profile for different user';
   END IF;
 
@@ -84,36 +88,40 @@ GRANT EXECUTE ON FUNCTION public.create_user_profile TO anon;
 -- Policy 1: Allow INSERT if auth.uid() matches the id being inserted
 -- During signup, auth.uid() should be available after signUp() completes
 -- Note: We use a security definer function to check auth.users to avoid RLS recursion
+-- Using (select auth.uid()) to cache the result for better performance
 CREATE POLICY "Users can insert their own record" ON public.users
     FOR INSERT
     WITH CHECK (
-        (auth.uid() IS NOT NULL AND id = auth.uid())
+        ((select auth.uid()) IS NOT NULL AND id = (select auth.uid()))
     );
 
--- Policy 2: Users can select their own record
-CREATE POLICY "Users can select their own record" ON public.users
+-- Policy 2 & 3: Combined SELECT policy for better performance
+-- Users can select their own record OR approved users can view all users
+-- Using (select auth.uid()) to cache the result for better performance
+CREATE POLICY "Users can select their own record or approved users can view all" ON public.users
     FOR SELECT
-    USING (id = auth.uid());
+    USING (
+        id = (select auth.uid()) 
+        OR public.is_user_approved((select auth.uid()))
+    );
 
--- Policy 3: Approved users can view all users (using function to avoid recursion)
-CREATE POLICY "Approved users can view all users" ON public.users
-    FOR SELECT
-    USING (public.is_user_approved(auth.uid()));
-
--- Policy 4: Users can update their own record (but not change role/status)
-CREATE POLICY "Users can update their own record" ON public.users
+-- Policy 4 & 5: Combined UPDATE policy for better performance
+-- Users can update their own record OR owners can update all users
+-- Using (select auth.uid()) to cache the result for better performance
+CREATE POLICY "Users can update their own record or owners can update all" ON public.users
     FOR UPDATE
-    USING (id = auth.uid())
-    WITH CHECK (id = auth.uid());
-
--- Policy 5: Owners can update all users (using function to avoid recursion)
-CREATE POLICY "Owners can update users" ON public.users
-    FOR UPDATE
-    USING (public.is_user_owner(auth.uid()))
-    WITH CHECK (public.is_user_owner(auth.uid()));
+    USING (
+        id = (select auth.uid()) 
+        OR public.is_user_owner((select auth.uid()))
+    )
+    WITH CHECK (
+        id = (select auth.uid()) 
+        OR public.is_user_owner((select auth.uid()))
+    );
 
 -- Policy 6: Owners can delete users (using function to avoid recursion)
+-- Using (select auth.uid()) to cache the result for better performance
 CREATE POLICY "Owners can delete users" ON public.users
     FOR DELETE
-    USING (public.is_user_owner(auth.uid()));
+    USING (public.is_user_owner((select auth.uid())));
 

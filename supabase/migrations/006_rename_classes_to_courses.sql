@@ -10,7 +10,7 @@ CREATE POLICY "Approved users can access all data" ON public.courses
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 

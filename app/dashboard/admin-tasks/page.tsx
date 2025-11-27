@@ -175,7 +175,7 @@ export default function AdminTasksPage() {
       { header: t('adminTasks.titleLabel'), accessor: (row) => row.title },
       { header: t('adminTasks.type'), accessor: (row) => row.type },
       { header: t('adminTasks.comment'), accessor: (row) => row.comment || '' },
-      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('common.status'), accessor: (row) => row.status === 'active' ? t('adminTasks.active') : t('adminTasks.archive') },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
     exportToXLS(filteredTasks, columns, 'admin-tasks')
@@ -186,7 +186,7 @@ export default function AdminTasksPage() {
       { header: t('adminTasks.titleLabel'), accessor: (row) => row.title },
       { header: t('adminTasks.type'), accessor: (row) => row.type },
       { header: t('adminTasks.comment'), accessor: (row) => row.comment || '' },
-      { header: t('common.status'), accessor: (row) => row.status },
+      { header: t('common.status'), accessor: (row) => row.status === 'active' ? t('adminTasks.active') : t('adminTasks.archive') },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
     exportToCSV(filteredTasks, columns, 'admin-tasks')
@@ -292,7 +292,7 @@ export default function AdminTasksPage() {
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       task.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {task.status}
+                      {task.status === 'active' ? t('adminTasks.active') : t('adminTasks.archive')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

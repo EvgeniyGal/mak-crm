@@ -10,6 +10,7 @@ import {
   Home,
   Users,
   UserCheck,
+  UserPlus,
   CreditCard,
   ClipboardCheck,
   Calendar,
@@ -48,6 +49,7 @@ type TranslationFunction = (key: string) => string
 const getMenuItems = (t: TranslationFunction): MenuItem[] => [
   { href: '/dashboard', label: t('dashboard.home'), icon: Home },
   { href: '/dashboard/students', label: t('dashboard.studentList'), icon: Users },
+  { href: '/dashboard/new-students', label: t('dashboard.newStudents'), icon: UserPlus },
   { href: '/dashboard/student-absentees', label: t('dashboard.studentAbsentees'), icon: UserCheck },
   { href: '/dashboard/student-payments', label: t('dashboard.studentPayments'), icon: CreditCard },
   { href: '/dashboard/attendances', label: t('dashboard.attendances'), icon: ClipboardCheck },

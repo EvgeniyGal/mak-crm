@@ -1,7 +1,20 @@
--- Automated Task Generation Functions
--- These functions generate admin tasks automatically based on system events
+-- Fix function search_path security warnings
+-- This migration updates all functions to set an explicit search_path
+-- to prevent security vulnerabilities from search_path manipulation
 
--- Function to check for first lesson attendance issues
+-- Fix update_updated_at_column function
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+-- Fix check_first_lessons function
 CREATE OR REPLACE FUNCTION check_first_lessons()
 RETURNS void 
 LANGUAGE plpgsql
@@ -49,7 +62,7 @@ BEGIN
 END;
 $$;
 
--- Function to check for students with 3 consecutive absences
+-- Fix check_absent_students function
 CREATE OR REPLACE FUNCTION check_absent_students()
 RETURNS void 
 LANGUAGE plpgsql
@@ -101,7 +114,7 @@ BEGIN
 END;
 $$;
 
--- Function to check for birthdays
+-- Fix check_birthdays function
 CREATE OR REPLACE FUNCTION check_birthdays()
 RETURNS void 
 LANGUAGE plpgsql
@@ -181,7 +194,7 @@ BEGIN
 END;
 $$;
 
--- Function to check financial anomalies
+-- Fix check_financial_anomalies function
 CREATE OR REPLACE FUNCTION check_financial_anomalies()
 RETURNS void 
 LANGUAGE plpgsql
@@ -266,7 +279,7 @@ BEGIN
 END;
 $$;
 
--- Main function to run all checks (should be called daily at 7 AM)
+-- Fix generate_daily_tasks function
 CREATE OR REPLACE FUNCTION generate_daily_tasks()
 RETURNS void 
 LANGUAGE plpgsql
@@ -278,10 +291,5 @@ BEGIN
     PERFORM check_birthdays();
     PERFORM check_financial_anomalies();
 END;
-$$ LANGUAGE plpgsql;
-
--- Note: To schedule this function to run daily at 7 AM, you would typically use:
--- pg_cron extension (if available) or external cron job that calls this function
--- Example with pg_cron (if extension is enabled):
--- SELECT cron.schedule('daily-task-generation', '0 7 * * *', $$SELECT generate_daily_tasks()$$);
+$$;
 

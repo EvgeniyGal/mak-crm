@@ -692,7 +692,7 @@ export default function StudentsPage() {
                   Email
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статус
+                  {t('students.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Зареєстровані класи
@@ -925,7 +925,7 @@ export default function StudentsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Статус *
+                {t('students.status')} *
               </label>
               <Select
                 value={formData.status}

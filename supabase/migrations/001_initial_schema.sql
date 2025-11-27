@@ -177,12 +177,15 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 -- Apply updated_at triggers
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -219,7 +222,7 @@ CREATE POLICY "Approved users can view all users" ON public.users
     FOR SELECT USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -227,7 +230,7 @@ CREATE POLICY "Owners can manage users" ON public.users
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.role = 'owner' AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.role = 'owner' AND u.status = 'approved'
         )
     );
 
@@ -236,7 +239,7 @@ CREATE POLICY "Approved users can access all data" ON public.students
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -244,7 +247,7 @@ CREATE POLICY "Approved users can access all data" ON public.teachers
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -252,7 +255,7 @@ CREATE POLICY "Approved users can access all data" ON public.classes
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -260,7 +263,7 @@ CREATE POLICY "Approved users can access all data" ON public.rooms
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -268,7 +271,7 @@ CREATE POLICY "Approved users can access all data" ON public.schedules
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -276,7 +279,7 @@ CREATE POLICY "Approved users can access all data" ON public.attendances
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -284,7 +287,7 @@ CREATE POLICY "Approved users can access all data" ON public.student_presences
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -292,7 +295,7 @@ CREATE POLICY "Approved users can access all data" ON public.payments
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -300,7 +303,7 @@ CREATE POLICY "Approved users can access all data" ON public.package_types
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -308,7 +311,7 @@ CREATE POLICY "Approved users can access all data" ON public.admin_tasks
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -316,7 +319,7 @@ CREATE POLICY "Approved users can access all data" ON public.expenditures
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 
@@ -324,7 +327,7 @@ CREATE POLICY "Approved users can access all data" ON public.teacher_salaries
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM public.users u
-            WHERE u.id = auth.uid() AND u.status = 'approved'
+            WHERE u.id = (select auth.uid()) AND u.status = 'approved'
         )
     );
 

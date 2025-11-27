@@ -956,7 +956,7 @@ export default function CoursesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Статус *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('courses.status')} *</label>
                     <Select
                       value={packageFormData.status}
                       onChange={(e) => setPackageFormData({ ...packageFormData, status: e.target.value })}

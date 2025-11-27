@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/utils'
 import { User } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface UserProfile {
   id: string
@@ -22,6 +23,7 @@ interface UserProfile {
 
 export default function ProfilePage() {
   const supabase = createClient()
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -194,11 +196,11 @@ export default function ProfilePage() {
                 <span className="text-gray-900">{userProfile?.role === 'owner' ? 'Власник' : 'Адміністратор'}</span>
               </div>
               <div>
-                <span className="font-medium">Статус:</span>{' '}
+                <span className="font-medium">{t('profile.status')}:</span>{' '}
                 <span className={`text-gray-900 ${
                   userProfile?.status === 'approved' ? 'text-green-600' : 'text-yellow-600'
                 }`}>
-                  {userProfile?.status === 'approved' ? 'Затверджено' : 'Очікує підтвердження'}
+                  {userProfile?.status === 'approved' ? t('profile.approved') : t('profile.pending')}
                 </span>
               </div>
               <div className="col-span-2">

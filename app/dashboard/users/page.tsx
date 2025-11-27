@@ -224,7 +224,7 @@ export default function UsersPage() {
       { header: t('users.phone'), accessor: (row) => row.phone || '' },
       { header: t('users.email'), accessor: (row) => row.email },
       { header: t('users.role'), accessor: (row) => row.role },
-      { header: t('users.status'), accessor: (row) => row.status },
+      { header: t('users.status'), accessor: (row) => row.status === 'approved' ? t('users.approved') : row.status === 'pending' ? t('users.pending') : t('users.fired') },
       { header: t('profile.registrationDate') || 'Дата реєстрації', accessor: (row) => formatDate(row.created_at) },
     ]
     exportToXLS(sortedUsers, columns, 'users')
@@ -238,7 +238,7 @@ export default function UsersPage() {
       { header: t('users.phone'), accessor: (row) => row.phone || '' },
       { header: t('users.email'), accessor: (row) => row.email },
       { header: t('users.role'), accessor: (row) => row.role },
-      { header: t('users.status'), accessor: (row) => row.status },
+      { header: t('users.status'), accessor: (row) => row.status === 'approved' ? t('users.approved') : row.status === 'pending' ? t('users.pending') : t('users.fired') },
       { header: t('profile.registrationDate') || 'Дата реєстрації', accessor: (row) => formatDate(row.created_at) },
     ]
     exportToCSV(sortedUsers, columns, 'users')
@@ -304,7 +304,7 @@ export default function UsersPage() {
           >
             <option value="full_name">Ім&apos;ям</option>
             <option value="role">Роллю</option>
-            <option value="status">Статусом</option>
+            <option value="status">{t('common.status')}</option>
             <option value="created_at">Датою створення</option>
           </Select>
           <Button
@@ -327,7 +327,7 @@ export default function UsersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Роль</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Телефон</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('users.status')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Створено</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дії</th>
               </tr>
@@ -357,7 +357,9 @@ export default function UsersPage() {
                       user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {user.status}
+                      {user.status === 'approved' ? t('users.approved') :
+                       user.status === 'pending' ? t('users.pending') :
+                       t('users.fired')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -500,7 +502,7 @@ export default function UsersPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Статус *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('users.status')} *</label>
               <Select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}

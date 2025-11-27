@@ -309,7 +309,7 @@ export default function StudentPaymentsPage() {
       { header: t('studentPayments.class') || 'Клас', accessor: (row) => row.class_name || '' },
       { header: t('studentPayments.packageType'), accessor: (row) => row.package_type_name || '' },
       { header: t('studentPayments.type'), accessor: (row) => row.payment_type },
-      { header: t('studentPayments.status') || 'Статус', accessor: (row) => row.status || '' },
+      { header: t('studentPayments.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : row.status === 'pending' ? t('payments.pending') : row.status || '' },
       { header: t('studentPayments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('studentPayments.createdAt'), accessor: (row) => formatDate(row.payment_date) },
     ]
@@ -322,7 +322,7 @@ export default function StudentPaymentsPage() {
       { header: t('studentPayments.class') || 'Клас', accessor: (row) => row.class_name || '' },
       { header: t('studentPayments.packageType'), accessor: (row) => row.package_type_name || '' },
       { header: t('studentPayments.type'), accessor: (row) => row.payment_type },
-      { header: t('studentPayments.status') || 'Статус', accessor: (row) => row.status || '' },
+      { header: t('studentPayments.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : row.status === 'pending' ? t('payments.pending') : row.status || '' },
       { header: t('studentPayments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('studentPayments.createdAt'), accessor: (row) => formatDate(row.payment_date) },
     ]
@@ -402,7 +402,7 @@ export default function StudentPaymentsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('common.status', 'Статус')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.status')}</label>
               <Select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
