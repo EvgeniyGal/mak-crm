@@ -903,7 +903,11 @@ export default function SchedulesPage() {
     const isEditing = editingAttendanceId !== null
 
     // Check if any students don't have payment (only for new attendance)
-    if (!isEditing && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1)) {
+    // Exclude students with "absent with valid reason" since they don't consume a lesson
+    if (!isEditing && classStudents.some(student => {
+      const hasValidReason = studentPresences[student.id]?.status === 'absent with valid reason'
+      return !hasValidReason && (studentAvailableLessons[student.id] ?? 0) < 1
+    })) {
       alert(t('attendances.studentsWithoutPayment') || 'Деякі студенти не мають платежу. Будь ласка, створіть платіж перед додаванням відвідуваності.')
       return
     }
@@ -2018,7 +2022,10 @@ export default function SchedulesPage() {
           )}
 
           <div className="flex flex-col gap-2 flex-shrink-0 pt-4 border-t">
-            {!editingAttendanceId && classStudents.length > 0 && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1) && (
+            {!editingAttendanceId && classStudents.length > 0 && classStudents.some(student => {
+              const hasValidReason = studentPresences[student.id]?.status === 'absent with valid reason'
+              return !hasValidReason && (studentAvailableLessons[student.id] ?? 0) < 1
+            }) && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
                 <p className="text-sm text-red-800">
                   {t('attendances.studentsWithoutPayment') || 'Деякі студенти не мають платежу. Будь ласка, створіть платіж перед додаванням відвідуваності.'}
@@ -2045,7 +2052,10 @@ export default function SchedulesPage() {
                 variant="success"
                 disabled={
                   classStudents.length === 0 || 
-                  (!editingAttendanceId && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1))
+                  (!editingAttendanceId && classStudents.some(student => {
+                    const hasValidReason = studentPresences[student.id]?.status === 'absent with valid reason'
+                    return !hasValidReason && (studentAvailableLessons[student.id] ?? 0) < 1
+                  }))
                 }
               >
                 {editingAttendanceId ? (t('attendances.saveAttendance') || 'Зберегти відвідуваність') : (t('attendances.addAttendance') || 'Додати відвідуваність')}

@@ -939,7 +939,10 @@ export default function AttendancesPage() {
         )}
 
           <div className="flex flex-col gap-2 flex-shrink-0 pt-4 border-t">
-            {!editingAttendance && selectedClassStudents.length > 0 && selectedClassStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1) && (
+            {!editingAttendance && selectedClassStudents.length > 0 && selectedClassStudents.some(student => {
+              const hasValidReason = studentPresences[student.id]?.status === 'absent with valid reason'
+              return !hasValidReason && (studentAvailableLessons[student.id] ?? 0) < 1
+            }) && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
                 <p className="text-sm text-red-800">
                   {t('attendances.studentsWithoutPayment')}
@@ -955,7 +958,10 @@ export default function AttendancesPage() {
                 variant={editingAttendance ? "default" : "success"}
                 disabled={
                   selectedClassStudents.length === 0 || 
-                  (!editingAttendance && selectedClassStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1))
+                  (!editingAttendance && selectedClassStudents.some(student => {
+                    const hasValidReason = studentPresences[student.id]?.status === 'absent with valid reason'
+                    return !hasValidReason && (studentAvailableLessons[student.id] ?? 0) < 1
+                  }))
                 }
               >
                 {editingAttendance ? 'Зберегти зміни' : 'Додати відвідуваність'}
