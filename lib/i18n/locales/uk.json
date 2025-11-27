@@ -55,6 +55,7 @@
     "from": "Від",
     "to": "До",
     "month": "Місяць",
+    "email": "Електронна пошта",
     "allStatuses": "Всі статуси",
     "allTypes": "Всі типи",
     "allRoles": "Всі ролі",
@@ -456,7 +457,10 @@
     "typeTill": "Каса",
     "paymentType": "Тип оплати",
     "paymentTypeCash": "Готівка",
-    "paymentTypeTill": "Каса"
+    "paymentTypeTill": "Каса",
+    "allExpenditureTypes": "Всі типи витрат",
+    "allPaymentTypes": "Всі типи оплат",
+    "expenditureType": "Тип витрати"
   },
   "teacherSalaries": {
     "title": "Зарплати вчителів",

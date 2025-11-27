@@ -107,6 +107,7 @@ export default function CoursesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [studentSearchTerm, setStudentSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
@@ -613,6 +614,7 @@ export default function CoursesPage() {
   }
 
   const resetForm = () => {
+    setStudentSearchTerm('')
     setFormData({
       name: '',
       teachers_ids: [],
@@ -1115,7 +1117,7 @@ export default function CoursesPage() {
                 </div>
               </div>
             )}
-            <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-white">
+            <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-blue-50">
               {/* Show existing packages for editing course */}
               {editingCourse && packageTypes.filter(pt => pt.class_id === editingCourse.id).map((pkg) => (
                 <div key={pkg.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
@@ -1270,7 +1272,7 @@ export default function CoursesPage() {
                 </div>
               </div>
             )}
-            <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-white">
+            <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-blue-50">
               {/* Show existing schedules for editing course */}
               {editingCourse && schedules.map((schedule) => (
                 <div key={schedule.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
@@ -1345,8 +1347,22 @@ export default function CoursesPage() {
                 Курс заповнений! Неможливо додати більше студентів.
               </div>
             )}
+            <div className="mb-2 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder={t('common.search') + '...'}
+                value={studentSearchTerm}
+                onChange={(e) => setStudentSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2 bg-pink-50">
-              {students.map((student) => {
+              {students
+                .filter((student) => {
+                  const fullName = `${student.student_first_name} ${student.student_last_name}`.toLowerCase()
+                  return fullName.includes(studentSearchTerm.toLowerCase())
+                })
+                .map((student) => {
                 const isSelected = formData.student_ids.includes(student.id)
                 const canSelect = availableSeats > 0 || isSelected
                 return (

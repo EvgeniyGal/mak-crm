@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatAge, formatDate } from '@/lib/utils'
-import { Search } from 'lucide-react'
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -33,6 +33,7 @@ interface AbsenteeData extends Student {
   enrolled_classes: string[]
   last_attendance_date: string | null
   total_absences: number
+  consecutive_absences: number
 }
 
 export default function StudentAbsenteesPage() {
@@ -152,20 +153,31 @@ export default function StudentAbsenteesPage() {
           p.student_id === student.id
         )
 
-        // Calculate total absences (attendances without presence OR with status 'absent' or 'absent with valid reason')
+        // Calculate total absences and consecutive absences
+        // Sort attendances by date to calculate consecutive absences
+        const sortedAttendances = [...studentAttendances].sort((a, b) => 
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        )
+
         let totalAbsences = 0
         let lastAttendanceDate: string | null = null
+        let maxConsecutiveAbsences = 0
+        let currentConsecutiveAbsences = 0
 
-        for (const attendance of studentAttendances) {
+        for (const attendance of sortedAttendances) {
           const presence = studentPresences.find(p => p.attendance_id === attendance.id)
-          if (!presence) {
+          const isAbsent = !presence || 
+            presence.status === 'absent' || 
+            presence.status === 'absent with valid reason'
+
+          if (isAbsent) {
             // No presence record = absent
             totalAbsences++
-          } else if (presence.status === 'absent' || presence.status === 'absent with valid reason') {
-            // Has presence record but status is absent = absent
-            totalAbsences++
+            currentConsecutiveAbsences++
+            maxConsecutiveAbsences = Math.max(maxConsecutiveAbsences, currentConsecutiveAbsences)
           } else if (presence.status === 'present') {
-            // Student was present, update last attendance date
+            // Student was present, reset consecutive counter and update last attendance date
+            currentConsecutiveAbsences = 0
             if (!lastAttendanceDate || attendance.date > lastAttendanceDate) {
               lastAttendanceDate = attendance.date
             }
@@ -188,6 +200,7 @@ export default function StudentAbsenteesPage() {
             enrolled_classes: enrolledClasses,
             last_attendance_date: lastAttendanceDate,
             total_absences: totalAbsences,
+            consecutive_absences: maxConsecutiveAbsences,
           })
         }
       }
@@ -251,6 +264,9 @@ export default function StudentAbsenteesPage() {
     } else if (sortBy === 'last_attendance') {
       aValue = a.last_attendance_date ? new Date(a.last_attendance_date).getTime() : 0
       bValue = b.last_attendance_date ? new Date(b.last_attendance_date).getTime() : 0
+    } else if (sortBy === 'consecutive_absences') {
+      aValue = a.consecutive_absences
+      bValue = b.consecutive_absences
     } else if (sortBy === 'total_absences') {
       aValue = a.total_absences
       bValue = b.total_absences
@@ -380,26 +396,6 @@ export default function StudentAbsenteesPage() {
             ))}
           </Select>
         </div>
-        <div className="flex gap-4 items-center">
-          <label className="text-sm font-medium">Сортувати за:</label>
-          <Select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="w-48"
-          >
-            <option value="student_name">Ім&apos;ям студента</option>
-            <option value="age">Віком</option>
-            <option value="last_attendance">Датою останньої відвідуваності</option>
-            <option value="total_absences">Кількістю пропусків</option>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-          >
-            {sortOrder === 'asc' ? '↑' : '↓'}
-          </Button>
-        </div>
       </div>
 
       {/* Table */}
@@ -408,11 +404,45 @@ export default function StudentAbsenteesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Студент
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
+                  onClick={() => {
+                    if (sortBy === 'student_name') {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortBy('student_name')
+                      setSortOrder('asc')
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    Студент
+                    {sortBy === 'student_name' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                    ) : (
+                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Вік
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
+                  onClick={() => {
+                    if (sortBy === 'age') {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortBy('age')
+                      setSortOrder('asc')
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    Вік
+                    {sortBy === 'age' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                    ) : (
+                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Батько
@@ -426,11 +456,45 @@ export default function StudentAbsenteesPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Зареєстровані класи
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Остання відвідуваність
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
+                  onClick={() => {
+                    if (sortBy === 'last_attendance') {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortBy('last_attendance')
+                      setSortOrder('asc')
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    Остання відвідуваність
+                    {sortBy === 'last_attendance' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                    ) : (
+                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Загальна кількість пропусків
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
+                  onClick={() => {
+                    if (sortBy === 'consecutive_absences') {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortBy('consecutive_absences')
+                      setSortOrder('asc')
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    Пропуски підряд
+                    {sortBy === 'consecutive_absences' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                    ) : (
+                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -462,11 +526,11 @@ export default function StudentAbsenteesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                      student.total_absences === 0 ? 'bg-yellow-100 text-yellow-800' :
-                      student.total_absences <= 3 ? 'bg-orange-100 text-orange-800' :
+                      student.consecutive_absences === 0 ? 'bg-yellow-100 text-yellow-800' :
+                      student.consecutive_absences <= 3 ? 'bg-orange-100 text-orange-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {student.total_absences}
+                      {student.consecutive_absences}
                     </span>
                   </td>
                 </tr>

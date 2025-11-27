@@ -180,6 +180,7 @@ export default function FinancePage() {
           .lt('created_at', weekEnd.toISOString())
 
         // Calculate previous balances
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         prevPayments?.forEach((payment: any) => {
           const amount = payment.package_types?.amount || 0
           if (payment.type === 'cash') {
@@ -189,6 +190,7 @@ export default function FinancePage() {
           }
         })
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         prevExpenditures?.forEach((expenditure: any) => {
           if (expenditure.payment_type === 'cash') {
             initialBalanceCash -= expenditure.amount
@@ -197,6 +199,7 @@ export default function FinancePage() {
           }
         })
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         prevSalaries?.forEach((salary: any) => {
           if (salary.payment_type === 'cash') {
             initialBalanceCash -= salary.amount
@@ -220,6 +223,7 @@ export default function FinancePage() {
 
         // Filter transactions for this date
         // Compare dates by creating date objects and comparing year, month, day
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dayPayments = payments?.filter((p: any) => {
           const paymentDate = new Date(p.updated_at || p.created_at)
           return paymentDate.getFullYear() === date.getFullYear() &&
@@ -227,6 +231,7 @@ export default function FinancePage() {
                  paymentDate.getDate() === date.getDate()
         }) || []
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dayExpenditures = expenditures?.filter((e: any) => {
           const expDate = new Date(e.created_at)
           return expDate.getFullYear() === date.getFullYear() &&
@@ -234,6 +239,7 @@ export default function FinancePage() {
                  expDate.getDate() === date.getDate()
         }) || []
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const daySalaries = salaries?.filter((s: any) => {
           const salDate = new Date(s.created_at)
           return salDate.getFullYear() === date.getFullYear() &&
@@ -244,6 +250,7 @@ export default function FinancePage() {
         // Calculate incomes
         let incomesCash = 0
         let incomesCard = 0
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dayPayments.forEach((payment: any) => {
           const amount = payment.package_types?.amount || 0
           if (payment.type === 'cash') {
@@ -257,6 +264,7 @@ export default function FinancePage() {
         let expendituresCash = 0
         let expendituresCard = 0
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dayExpenditures.forEach((expenditure: any) => {
           if (expenditure.payment_type === 'cash') {
             expendituresCash += expenditure.amount
@@ -265,6 +273,7 @@ export default function FinancePage() {
           }
         })
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         daySalaries.forEach((salary: any) => {
           if (salary.payment_type === 'cash') {
             expendituresCash += salary.amount

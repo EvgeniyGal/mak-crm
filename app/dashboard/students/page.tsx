@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatAge, formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Search, FileText } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -62,10 +62,7 @@ export default function StudentsPage() {
   const [minAgeMonths, setMinAgeMonths] = useState<string>('')
   const [maxAgeYears, setMaxAgeYears] = useState<string>('')
   const [maxAgeMonths, setMaxAgeMonths] = useState<string>('')
-  const [minAbsentee, setMinAbsentee] = useState<string>('')
-  const [maxAbsentee, setMaxAbsentee] = useState<string>('')
   const [courseFilter, setCourseFilter] = useState<string>('all')
-  const [studentAbsences] = useState<Record<string, number>>({})
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [sortBy, setSortBy] = useState<string>('created_at')
@@ -439,17 +436,11 @@ export default function StudentsPage() {
       matchesAgeRange = matchesAgeRange && totalMonths <= maxTotalMonths
     }
 
-    // Absentee filter
-    const studentAbsenceCount = studentAbsences[student.id] || 0
-    const matchesAbsenteeRange =
-      (minAbsentee === '' || studentAbsenceCount >= parseInt(minAbsentee)) &&
-      (maxAbsentee === '' || studentAbsenceCount <= parseInt(maxAbsentee))
-
     // Course filter
     const matchesCourse = courseFilter === 'all' || 
       (student.enrolled_class_ids && student.enrolled_class_ids.includes(courseFilter))
 
-    return matchesSearch && matchesStatus && matchesAgeRange && matchesAbsenteeRange && matchesCourse
+    return matchesSearch && matchesStatus && matchesAgeRange && matchesCourse
   })
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -481,6 +472,24 @@ export default function StudentsPage() {
   )
 
   const totalPages = Math.ceil(sortedStudents.length / itemsPerPage)
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+  }
+
+  const getSortIcon = (field: string) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="h-4 w-4 inline ml-1 text-gray-400" />
+    }
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="h-4 w-4 inline ml-1 text-gray-600" />
+      : <ArrowDown className="h-4 w-4 inline ml-1 text-gray-600" />
+  }
 
   const getClassName = (classId: string | null | undefined): string | null => {
     if (!classId) return null
@@ -575,7 +584,7 @@ export default function StudentsPage() {
             ))}
           </Select>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('students.age')} {t('common.from')}
@@ -624,49 +633,6 @@ export default function StudentsPage() {
               />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('studentAbsentees.title')} ({t('common.from')} - {t('common.to')})
-            </label>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder={t('common.from')}
-                value={minAbsentee}
-                onChange={(e) => setMinAbsentee(e.target.value)}
-                className="w-24"
-                min="0"
-              />
-              <span className="text-sm self-center">{t('common.to')}</span>
-              <Input
-                type="number"
-                placeholder={t('common.to')}
-                value={maxAbsentee}
-                onChange={(e) => setMaxAbsentee(e.target.value)}
-                className="w-24"
-                min="0"
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-4 items-center">
-          <label className="text-sm font-medium">{t('common.sortBy')}</label>
-          <Select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="w-48"
-          >
-            <option value="created_at">{t('students.sortByDate')}</option>
-            <option value="age">{t('students.sortByAge')}</option>
-            <option value="student_full_name">{t('students.sortByName')}</option>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-          >
-            {sortOrder === 'asc' ? '↑' : '↓'}
-          </Button>
         </div>
       </div>
 
@@ -676,11 +642,19 @@ export default function StudentsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('student_full_name')}
+                >
                   {t('students.student')}
+                  {getSortIcon('student_full_name')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('age')}
+                >
                   Вік
+                  {getSortIcon('age')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Батько
@@ -703,8 +677,12 @@ export default function StudentsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Коментар
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('created_at')}
+                >
                   Створено
+                  {getSortIcon('created_at')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Дії
@@ -946,7 +924,7 @@ export default function StudentsPage() {
             <textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              className="w-full px-3 py-2 border-2 border-gray-400 rounded-md text-gray-900 focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border-2 border-gray-400 rounded-md text-gray-900 bg-gray-50 focus:outline-none focus:border-blue-500 focus:bg-white"
               rows={3}
               placeholder="Додайте коментар про студента..."
             />
@@ -955,7 +933,7 @@ export default function StudentsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Зареєстровані класи
             </label>
-            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
+            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2 bg-blue-50">
               {classes.filter(cls => cls.status === 'active').map((cls) => {
                 const capacity = classCapacities[cls.id]
                 const isFull = capacity?.isFull || false
@@ -1005,7 +983,7 @@ export default function StudentsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Зацікавлені класи
             </label>
-            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
+            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2 bg-blue-50">
               {classes.filter(cls => cls.status === 'active').map((cls) => (
                 <label key={cls.id} className="flex items-center">
                   <input

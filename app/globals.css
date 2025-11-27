@@ -66,10 +66,12 @@ textarea::placeholder {
 textarea {
   border-width: 2px !important;
   border-color: #9ca3af !important; /* border-gray-400 */
+  background-color: #f9fafb !important; /* bg-gray-50 */
 }
 
 textarea:focus {
   border-color: #3b82f6 !important; /* border-blue-500 */
+  background-color: #ffffff !important; /* bg-white */
   outline: none;
 }
 

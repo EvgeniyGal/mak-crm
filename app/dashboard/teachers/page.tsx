@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -43,6 +43,8 @@ export default function TeachersPage() {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<string>('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
 
@@ -187,15 +189,77 @@ export default function TeachersPage() {
     return matchesSearch && matchesStatus
   })
 
-  const paginatedTeachers = filteredTeachers.slice(
+  const sortedTeachers = [...filteredTeachers].sort((a, b) => {
+    let aValue: string | number | Date = ''
+    let bValue: string | number | Date = ''
+
+    if (sortBy === 'created_at') {
+      aValue = new Date(a.created_at)
+      bValue = new Date(b.created_at)
+    } else if (sortBy === 'name') {
+      aValue = `${a.first_name} ${a.last_name}`.toLowerCase()
+      bValue = `${b.first_name} ${b.last_name}`.toLowerCase()
+    } else if (sortBy === 'date_of_birth') {
+      aValue = a.date_of_birth ? new Date(a.date_of_birth) : new Date(0)
+      bValue = b.date_of_birth ? new Date(b.date_of_birth) : new Date(0)
+    } else if (sortBy === 'phone') {
+      aValue = (a.phone || '').toLowerCase()
+      bValue = (b.phone || '').toLowerCase()
+    } else if (sortBy === 'email') {
+      aValue = (a.email || '').toLowerCase()
+      bValue = (b.email || '').toLowerCase()
+    } else if (sortBy === 'status') {
+      aValue = a.status.toLowerCase()
+      bValue = b.status.toLowerCase()
+    }
+
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1
+    } else {
+      return aValue < bValue ? 1 : -1
+    }
+  })
+
+  const paginatedTeachers = sortedTeachers.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   )
 
-  const totalPages = Math.ceil(filteredTeachers.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedTeachers.length / itemsPerPage)
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+  }
+
+  const getSortIcon = (field: string) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="h-4 w-4 inline ml-1 text-gray-400" />
+    }
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="h-4 w-4 inline ml-1 text-gray-600" />
+      : <ArrowDown className="h-4 w-4 inline ml-1 text-gray-600" />
+  }
 
   const getClassName = (classId: string) => {
     return classes.find(c => c.id === classId)?.name || classId
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active':
+        return t('teachers.active')
+      case 'probational':
+        return t('teachers.probational')
+      case 'fired':
+        return t('teachers.fired')
+      default:
+        return status
+    }
   }
 
   const handleExportXLS = () => {
@@ -206,12 +270,12 @@ export default function TeachersPage() {
       { header: t('teachers.dateOfBirth'), accessor: (row) => row.date_of_birth ? formatDate(row.date_of_birth) : '' },
       { header: t('teachers.phone'), accessor: (row) => row.phone || '' },
       { header: t('teachers.email'), accessor: (row) => row.email || '' },
-      { header: t('teachers.status'), accessor: (row) => row.status },
+      { header: t('teachers.status'), accessor: (row) => getStatusLabel(row.status) },
       { header: t('teachers.assignedClasses'), accessor: (row) => row.assigned_class_ids.map(getClassName).join(', ') || '' },
       { header: t('teachers.comment'), accessor: (row) => row.comment || '' },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
-    exportToXLS(filteredTeachers, columns, 'teachers')
+    exportToXLS(sortedTeachers, columns, 'teachers')
   }
 
   const handleExportCSV = () => {
@@ -222,12 +286,12 @@ export default function TeachersPage() {
       { header: t('teachers.dateOfBirth'), accessor: (row) => row.date_of_birth ? formatDate(row.date_of_birth) : '' },
       { header: t('teachers.phone'), accessor: (row) => row.phone || '' },
       { header: t('teachers.email'), accessor: (row) => row.email || '' },
-      { header: t('teachers.status'), accessor: (row) => row.status },
+      { header: t('teachers.status'), accessor: (row) => getStatusLabel(row.status) },
       { header: t('teachers.assignedClasses'), accessor: (row) => row.assigned_class_ids.map(getClassName).join(', ') || '' },
       { header: t('teachers.comment'), accessor: (row) => row.comment || '' },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
     ]
-    exportToCSV(filteredTeachers, columns, 'teachers')
+    exportToCSV(sortedTeachers, columns, 'teachers')
   }
 
   if (loading) {
@@ -243,7 +307,7 @@ export default function TeachersPage() {
             <ExportButton 
               onExportXLS={handleExportXLS}
               onExportCSV={handleExportCSV}
-              disabled={filteredTeachers.length === 0}
+              disabled={sortedTeachers.length === 0}
             />
           )}
           <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
@@ -284,20 +348,40 @@ export default function TeachersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('name')}
+                >
                   {t('teachers.teacher')}
+                  {getSortIcon('name')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('date_of_birth')}
+                >
                   {t('teachers.dateOfBirth')}
+                  {getSortIcon('date_of_birth')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('phone')}
+                >
                   {t('teachers.phone')}
+                  {getSortIcon('phone')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('email')}
+                >
                   {t('teachers.email')}
+                  {getSortIcon('email')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('status')}
+                >
                   {t('teachers.status')}
+                  {getSortIcon('status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('teachers.assignedClasses')}
@@ -331,7 +415,7 @@ export default function TeachersPage() {
                       teacher.status === 'probational' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {teacher.status}
+                      {getStatusLabel(teacher.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
@@ -379,7 +463,7 @@ export default function TeachersPage() {
               <option value="50">50</option>
             </Select>
             <span className="text-sm text-gray-700">
-              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTeachers.length)} {t('common.of')} {filteredTeachers.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedTeachers.length)} {t('common.of')} {sortedTeachers.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -493,7 +577,7 @@ export default function TeachersPage() {
             <textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:border-blue-500"
+              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:border-blue-500 focus:bg-white"
               rows={3}
             />
           </div>
@@ -501,7 +585,7 @@ export default function TeachersPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('teachers.assignedClasses')}
             </label>
-            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
+            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2 bg-blue-50">
               {classes.map((cls) => (
                 <label key={cls.id} className="flex items-center">
                   <input

@@ -280,13 +280,15 @@ export default function DashboardPage() {
 
       interface PaymentWithPackage {
         created_at: string
+        updated_at: string
         package_types: {
           amount: string | number
         } | null
       }
       if (paymentsData2) {
         (paymentsData2 as PaymentWithPackage[]).forEach((p) => {
-          const paymentDate = new Date(p.created_at)
+          // Use updated_at date (when status was changed to 'paid') or fallback to created_at
+          const paymentDate = new Date(p.updated_at || p.created_at)
           const amount = typeof p.package_types?.amount === 'number' 
             ? p.package_types.amount 
             : parseFloat(String(p.package_types?.amount || 0))
@@ -696,7 +698,7 @@ export default function DashboardPage() {
             <textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:border-blue-500"
+              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:border-blue-500 focus:bg-white"
               rows={3}
             />
           </div>

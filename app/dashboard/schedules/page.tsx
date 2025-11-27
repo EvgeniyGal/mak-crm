@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Plus, Edit, Trash2, Calendar, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, ChevronLeft, ChevronRight, Eye, CheckCircle2 } from 'lucide-react'
 import { Calendar as BigCalendar, momentLocalizer, Event, SlotInfo } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import moment from 'moment'
@@ -41,13 +41,35 @@ const CustomToolbar = () => {
 }
 
 // Custom event component without button (button moved to header)
-const createCustomEvent = () => {
-  return ({ event }: { event: EventWithId & { resource: Schedule } }) => {
+const createCustomEvent = (hasAttendance: (classId: string, date: string) => boolean) => {
+  // eslint-disable-next-line react/display-name, @typescript-eslint/no-explicit-any
+  return (props: any) => {
+    const event = props.event as EventWithId & { resource: Schedule }
+    const schedule = event.resource
+    const eventDate = moment(event.start).format('YYYY-MM-DD')
+    const hasAtt = hasAttendance(schedule.class_id, eventDate)
+    
     return (
-      <div className="rbc-event-content" style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '2px 4px', height: '100%' }}>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+      <div className="rbc-event-content" style={{ position: 'relative', width: '100%', height: '100%', padding: '2px 4px', display: 'flex', alignItems: 'center' }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, paddingRight: hasAtt ? '18px' : '0' }}>
           {event.title}
         </span>
+        {hasAtt && (
+          <span 
+            title="Відвідуваність додана"
+            style={{ 
+              position: 'absolute', 
+              top: '2px', 
+              right: '2px',
+              zIndex: 10
+            }}
+          >
+            <CheckCircle2 
+              size={14} 
+              style={{ color: 'white', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
+            />
+          </span>
+        )}
       </div>
     )
   }
@@ -55,7 +77,8 @@ const createCustomEvent = () => {
 
 // Custom day header component with button to view day details
 const createCustomDayHeader = (onViewDayDetails: (date: string) => void) => {
-  return (props: { label: string; date: Date; [key: string]: unknown }) => {
+  // eslint-disable-next-line react/display-name, @typescript-eslint/no-explicit-any
+  return (props: any) => {
     const { label, date } = props
     const headerDate = date instanceof Date ? date : new Date(date)
     
@@ -192,6 +215,7 @@ export default function SchedulesPage() {
     }>
   }>>([])
   const [loadingDayDetails, setLoadingDayDetails] = useState(false)
+  const [attendanceMap, setAttendanceMap] = useState<Map<string, boolean>>(new Map())
 
   const [formData, setFormData] = useState({
     class_id: '',
@@ -282,6 +306,49 @@ export default function SchedulesPage() {
       setLoading(false)
     }
   }, [supabase])
+
+  // Fetch attendance data for all classes and dates
+  const fetchAttendanceData = useCallback(async () => {
+    try {
+      // Get current date range (4 weeks before to 12 weeks after)
+      const today = moment().startOf('day')
+      const currentSunday = today.clone().day(0)
+      if (currentSunday.isAfter(today)) {
+        currentSunday.subtract(1, 'week')
+      }
+      const startDate = currentSunday.clone().subtract(4, 'weeks')
+      const endDate = currentSunday.clone().add(12, 'weeks').add(6, 'days')
+
+      // Fetch all attendances in this date range
+      const { data: attendances, error } = await supabase
+        .from('attendances')
+        .select('class_id, date')
+        .gte('date', startDate.format('YYYY-MM-DD'))
+        .lte('date', endDate.format('YYYY-MM-DD'))
+
+      if (error) {
+        console.error('Error fetching attendance data:', error)
+        return
+      }
+
+      // Create a map: "classId-date" -> true
+      const attendanceMap = new Map<string, boolean>()
+      attendances?.forEach(attendance => {
+        const key = `${attendance.class_id}-${attendance.date}`
+        attendanceMap.set(key, true)
+      })
+
+      setAttendanceMap(attendanceMap)
+    } catch (error) {
+      console.error('Error in fetchAttendanceData:', error)
+    }
+  }, [supabase])
+
+  // Helper function to check if attendance exists
+  const hasAttendance = useCallback((classId: string, date: string): boolean => {
+    const key = `${classId}-${date}`
+    return attendanceMap.has(key)
+  }, [attendanceMap])
 
   const fetchClasses = useCallback(async () => {
     try {
@@ -531,7 +598,8 @@ export default function SchedulesPage() {
     fetchRooms()
     fetchTeachers()
     fetchStudents()
-  }, [fetchSchedules, fetchClasses, fetchRooms, fetchTeachers, fetchStudents])
+    fetchAttendanceData()
+  }, [fetchSchedules, fetchClasses, fetchRooms, fetchTeachers, fetchStudents, fetchAttendanceData])
 
   useEffect(() => {
     checkConflicts()
@@ -857,7 +925,7 @@ export default function SchedulesPage() {
               // Try to restore to the payment that originally had this presence
               const { data: payments } = await supabase
                 .from('payments')
-                .select('id, available_lesson_count, student_presence_ids')
+                .select('id, available_lesson_count, student_presence_ids, status')
                 .eq('student_id', presence.student_id)
                 .eq('class_id', selectedScheduleForAttendance.class_id)
                 .order('created_at', { ascending: false })
@@ -879,7 +947,7 @@ export default function SchedulesPage() {
                 }
 
                 if (paymentToRestore) {
-                  const newPresenceIds = (paymentToRestore.student_presence_ids || []).filter(id => id !== presence.id)
+                  const newPresenceIds = (paymentToRestore.student_presence_ids || []).filter((id: string) => id !== presence.id)
                   await supabase
                     .from('payments')
                     .update({
@@ -968,6 +1036,7 @@ export default function SchedulesPage() {
       setSelectedScheduleForAttendance(null)
       setSelectedDateForAttendance('')
       setEditingAttendanceId(null)
+      await fetchAttendanceData() // Refresh attendance indicators
       setStudentPresences({})
       setClassStudents([])
       const successMsg = isEditing 
@@ -1299,6 +1368,7 @@ export default function SchedulesPage() {
 
         attendancesWithCourses.forEach(attendance => {
           const classId = attendance.class_id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const className = (attendance.courses as any)?.name || classes.find(c => c.id === classId)?.name || t('schedules.noName') || 'Без назви'
           
           if (!groupedByClass[classId]) {
@@ -1312,6 +1382,7 @@ export default function SchedulesPage() {
           // Add students for this attendance
           const classPresences = presences?.filter(p => p.attendance_id === attendance.id) || []
           classPresences.forEach(presence => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const student = presence.students as any
             groupedByClass[classId].students.push({
               id: presence.student_id,
@@ -1386,6 +1457,7 @@ export default function SchedulesPage() {
 
         attendances.forEach(attendance => {
           const classId = attendance.class_id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const className = (attendance.courses as any)?.name || classes.find(c => c.id === classId)?.name || t('schedules.noName') || 'Без назви'
           
           if (!groupedByClass[classId]) {
@@ -1432,6 +1504,7 @@ export default function SchedulesPage() {
 
       attendances.forEach(attendance => {
         const classId = attendance.class_id
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const className = (attendance.courses as any)?.name || classes.find(c => c.id === classId)?.name || t('schedules.noName') || 'Без назви'
         
         if (!groupedByClass[classId]) {
@@ -1445,6 +1518,7 @@ export default function SchedulesPage() {
         // Add students for this attendance
         const classPresences = presences?.filter(p => p.attendance_id === attendance.id) || []
         classPresences.forEach(presence => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const student = presence.students as any
           groupedByClass[classId].students.push({
             id: presence.student_id,
@@ -1580,7 +1654,7 @@ export default function SchedulesPage() {
             eventPropGetter={eventStyleGetter}
             components={{
               toolbar: CustomToolbar,
-              event: createCustomEvent(),
+              event: createCustomEvent(hasAttendance),
               header: createCustomDayHeader(handleViewDayDetails),
             }}
             messages={{

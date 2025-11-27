@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -33,6 +33,11 @@ export default function ExpendituresPage() {
   const [editingExpenditure, setEditingExpenditure] = useState<Expenditure | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all')
+  const [dateRangeStart, setDateRangeStart] = useState('')
+  const [dateRangeEnd, setDateRangeEnd] = useState('')
+  const [sortBy, setSortBy] = useState<string>('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
 
@@ -143,15 +148,79 @@ export default function ExpendituresPage() {
 
     const matchesType = typeFilter === 'all' || expenditure.type === typeFilter
 
-    return matchesSearch && matchesType
+    const matchesPaymentType = paymentTypeFilter === 'all' || expenditure.payment_type === paymentTypeFilter
+
+    // Date range filter
+    let matchesDateRange = true
+    if (dateRangeStart || dateRangeEnd) {
+      const expenditureDate = new Date(expenditure.created_at)
+      if (dateRangeStart) {
+        const startDate = new Date(dateRangeStart)
+        startDate.setHours(0, 0, 0, 0)
+        matchesDateRange = matchesDateRange && expenditureDate >= startDate
+      }
+      if (dateRangeEnd) {
+        const endDate = new Date(dateRangeEnd)
+        endDate.setHours(23, 59, 59, 999)
+        matchesDateRange = matchesDateRange && expenditureDate <= endDate
+      }
+    }
+
+    return matchesSearch && matchesType && matchesPaymentType && matchesDateRange
   })
 
-  const paginatedExpenditures = filteredExpenditures.slice(
+  const sortedExpenditures = [...filteredExpenditures].sort((a, b) => {
+    let aValue: string | number | Date = ''
+    let bValue: string | number | Date = ''
+
+    if (sortBy === 'created_at') {
+      aValue = new Date(a.created_at)
+      bValue = new Date(b.created_at)
+    } else if (sortBy === 'amount') {
+      aValue = a.amount
+      bValue = b.amount
+    } else if (sortBy === 'person') {
+      aValue = (a.person || '').toLowerCase()
+      bValue = (b.person || '').toLowerCase()
+    } else if (sortBy === 'type') {
+      aValue = a.type.toLowerCase()
+      bValue = b.type.toLowerCase()
+    } else if (sortBy === 'payment_type') {
+      aValue = (a.payment_type || '').toLowerCase()
+      bValue = (b.payment_type || '').toLowerCase()
+    }
+
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1
+    } else {
+      return aValue < bValue ? 1 : -1
+    }
+  })
+
+  const paginatedExpenditures = sortedExpenditures.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   )
 
-  const totalPages = Math.ceil(filteredExpenditures.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedExpenditures.length / itemsPerPage)
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+  }
+
+  const getSortIcon = (field: string) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="h-4 w-4 inline ml-1 text-gray-400" />
+    }
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="h-4 w-4 inline ml-1 text-gray-600" />
+      : <ArrowDown className="h-4 w-4 inline ml-1 text-gray-600" />
+  }
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -162,7 +231,7 @@ export default function ExpendituresPage() {
       { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
       { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
     ]
-    exportToXLS(filteredExpenditures, columns, 'expenditures')
+    exportToXLS(sortedExpenditures, columns, 'expenditures')
   }
 
   const handleExportCSV = () => {
@@ -174,7 +243,7 @@ export default function ExpendituresPage() {
       { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
       { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
     ]
-    exportToCSV(filteredExpenditures, columns, 'expenditures')
+    exportToCSV(sortedExpenditures, columns, 'expenditures')
   }
 
   if (loading) {
@@ -190,7 +259,7 @@ export default function ExpendituresPage() {
             <ExportButton 
               onExportXLS={handleExportXLS}
               onExportCSV={handleExportCSV}
-              disabled={filteredExpenditures.length === 0}
+              disabled={sortedExpenditures.length === 0}
             />
           )}
           <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
@@ -202,8 +271,8 @@ export default function ExpendituresPage() {
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex-1 relative min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={t('expenditures.searchPlaceholder')}
@@ -214,14 +283,42 @@ export default function ExpendituresPage() {
           </div>
           <Select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
+            onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1) }}
             className="w-48"
           >
-            <option value="all">{t('common.allTypes')}</option>
+            <option value="all">{t('expenditures.allExpenditureTypes')}</option>
             <option value="regular">{t('expenditures.typeRegular')}</option>
             <option value="staff">{t('expenditures.typeStaff')}</option>
-            <option value="till">{t('expenditures.typeTill')}</option>
           </Select>
+          <Select
+            value={paymentTypeFilter}
+            onChange={(e) => { setPaymentTypeFilter(e.target.value); setCurrentPage(1) }}
+            className="w-48"
+          >
+            <option value="all">{t('expenditures.allPaymentTypes')}</option>
+            <option value="cash">{t('expenditures.paymentTypeCash')}</option>
+            <option value="till">{t('expenditures.paymentTypeTill')}</option>
+          </Select>
+        </div>
+        <div className="flex gap-4 flex-wrap items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.from')}</label>
+            <Input
+              type="date"
+              value={dateRangeStart}
+              onChange={(e) => { setDateRangeStart(e.target.value); setCurrentPage(1) }}
+              className="w-48"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.to')}</label>
+            <Input
+              type="date"
+              value={dateRangeEnd}
+              onChange={(e) => { setDateRangeEnd(e.target.value); setCurrentPage(1) }}
+              className="w-48"
+            />
+          </div>
         </div>
       </div>
 
@@ -231,23 +328,43 @@ export default function ExpendituresPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('expenditures.type')}
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('type')}
+                >
+                  {t('expenditures.expenditureType')}
+                  {getSortIcon('type')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('person')}
+                >
                   {t('expenditures.person')}
+                  {getSortIcon('person')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('payment_type')}
+                >
                   {t('expenditures.paymentType')}
+                  {getSortIcon('payment_type')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('amount')}
+                >
                   {t('expenditures.amount')}
+                  {getSortIcon('amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('expenditures.comment')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleSort('created_at')}
+                >
                   {t('common.createdAt')}
+                  {getSortIcon('created_at')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('common.actions')}
@@ -323,7 +440,7 @@ export default function ExpendituresPage() {
               <option value="50">50</option>
             </Select>
             <span className="text-sm text-gray-700">
-              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredExpenditures.length)} {t('common.of')} {filteredExpenditures.length}
+              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedExpenditures.length)} {t('common.of')} {sortedExpenditures.length}
             </span>
           </div>
           <div className="flex gap-2">
@@ -366,7 +483,6 @@ export default function ExpendituresPage() {
             >
               <option value="regular">{t('expenditures.typeRegular')}</option>
               <option value="staff">{t('expenditures.typeStaff')}</option>
-              <option value="till">{t('expenditures.typeTill')}</option>
             </Select>
           </div>
           <div>
@@ -411,7 +527,7 @@ export default function ExpendituresPage() {
             <textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:border-blue-500"
+              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:border-blue-500 focus:bg-white"
               rows={3}
             />
           </div>

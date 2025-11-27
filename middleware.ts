@@ -98,6 +98,11 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Don't interfere with callback or reset-password routes
+  if (request.nextUrl.pathname.startsWith('/auth/callback') || request.nextUrl.pathname.startsWith('/auth/reset-password')) {
+    return response
+  }
+
   return response
 }
 

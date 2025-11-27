@@ -22,6 +22,7 @@ interface Payment {
   type: string
   available_lesson_count: number
   created_at: string
+  updated_at?: string
   comment?: string
   students?: { student_first_name: string; student_last_name: string }
   courses?: { name: string }
@@ -64,6 +65,8 @@ export default function PaymentsPage() {
   const [courseFilter, setCourseFilter] = useState<string>('all')
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
+  const [updatedRangeStart, setUpdatedRangeStart] = useState('')
+  const [updatedRangeEnd, setUpdatedRangeEnd] = useState('')
   const [sortBy, setSortBy] = useState<string>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
@@ -246,7 +249,7 @@ export default function PaymentsPage() {
     const matchesType = typeFilter === 'all' || payment.type === typeFilter
     const matchesCourse = courseFilter === 'all' || payment.class_id === courseFilter
 
-    // Date range filter
+    // Date range filter (created)
     let matchesDateRange = true
     if (dateRangeStart || dateRangeEnd) {
       const paymentDate = new Date(payment.created_at)
@@ -262,7 +265,23 @@ export default function PaymentsPage() {
       }
     }
 
-    return matchesSearch && matchesStatus && matchesType && matchesCourse && matchesDateRange
+    // Updated date range filter
+    let matchesUpdatedRange = true
+    if (updatedRangeStart || updatedRangeEnd) {
+      const updatedDate = new Date(payment.updated_at || payment.created_at)
+      if (updatedRangeStart) {
+        const startUpdated = new Date(updatedRangeStart)
+        startUpdated.setHours(0, 0, 0, 0)
+        matchesUpdatedRange = matchesUpdatedRange && updatedDate >= startUpdated
+      }
+      if (updatedRangeEnd) {
+        const endUpdated = new Date(updatedRangeEnd)
+        endUpdated.setHours(23, 59, 59, 999)
+        matchesUpdatedRange = matchesUpdatedRange && updatedDate <= endUpdated
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesType && matchesCourse && matchesDateRange && matchesUpdatedRange
   })
 
   const sortedPayments = [...filteredPayments].sort((a, b) => {
@@ -433,25 +452,22 @@ export default function PaymentsPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.sortBy')}</label>
-            <Select
-              value={sortBy}
-              onChange={(e) => { 
-                const newSortBy = e.target.value
-                if (newSortBy === sortBy) {
-                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                } else {
-                  setSortBy(newSortBy)
-                  setSortOrder('asc')
-                }
-                setCurrentPage(1)
-              }}
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.updatedFrom')}</label>
+            <Input
+              type="date"
+              value={updatedRangeStart}
+              onChange={(e) => { setUpdatedRangeStart(e.target.value); setCurrentPage(1) }}
               className="w-48"
-            >
-              <option value="created_at">{t('payments.sortByDate')} {sortBy === 'created_at' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}</option>
-              <option value="student_name">{t('payments.sortByName')} {sortBy === 'student_name' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}</option>
-              <option value="course">{t('payments.sortByCourse')} {sortBy === 'course' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}</option>
-            </Select>
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.updatedTo')}</label>
+            <Input
+              type="date"
+              value={updatedRangeEnd}
+              onChange={(e) => { setUpdatedRangeEnd(e.target.value); setCurrentPage(1) }}
+              className="w-48"
+            />
           </div>
         </div>
       </div>
@@ -499,6 +515,9 @@ export default function PaymentsPage() {
                   {getSortIcon('created_at')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('common.updatedAt')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('payments.comment')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -540,6 +559,9 @@ export default function PaymentsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(payment.created_at)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {formatDate(payment.updated_at || payment.created_at)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={payment.comment || ''}>
                     {payment.comment || '-'}
@@ -692,7 +714,7 @@ export default function PaymentsPage() {
             <textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
               rows={3}
               placeholder={t('payments.commentPlaceholder')}
             />

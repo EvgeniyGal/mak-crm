@@ -55,6 +55,7 @@
     "from": "From",
     "to": "To",
     "month": "Month",
+    "email": "Email",
     "allStatuses": "All Statuses",
     "allTypes": "All Types",
     "allRoles": "All Roles",
@@ -457,7 +458,10 @@
     "typeTill": "Till",
     "paymentType": "Payment Type",
     "paymentTypeCash": "Cash",
-    "paymentTypeTill": "Till"
+    "paymentTypeTill": "Till",
+    "allExpenditureTypes": "All Expenditure Types",
+    "allPaymentTypes": "All Payment Types",
+    "expenditureType": "Expenditure Type"
   },
   "teacherSalaries": {
     "title": "Teacher Salaries",
