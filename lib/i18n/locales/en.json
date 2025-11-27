@@ -390,7 +390,9 @@
     "sortByDate": "Date",
     "sortByName": "Student Name",
     "sortByCourse": "Course",
-    "courses": "Courses"
+    "courses": "Courses",
+    "updatedFrom": "Updated From",
+    "updatedTo": "Updated To"
   },
   "studentPayments": {
     "title": "Student Payments",
@@ -508,6 +510,18 @@
     "week": "Week",
     "month": "Month",
     "year": "Year"
+  },
+  "finance": {
+    "date": "Date",
+    "balanceAsOfStartDay": "Balance as of Start Day",
+    "incomesCash": "Incomes (Cash)",
+    "incomesCard": "Incomes (Card)",
+    "expendituresCash": "Expenditures (Cash)",
+    "expendituresCard": "Expenditures (Card)",
+    "balanceCash": "Balance (Cash)",
+    "balanceCard": "Balance (Card)",
+    "totalBalance": "Total Balance",
+    "total": "Total"
   },
   "profile": {
     "title": "My Profile",

@@ -389,7 +389,9 @@
     "sortByDate": "Дата",
     "sortByName": "Ім'я студента",
     "sortByCourse": "Курс",
-    "courses": "Курси"
+    "courses": "Курси",
+    "updatedFrom": "Оновлено від",
+    "updatedTo": "Оновлено до"
   },
   "studentPayments": {
     "title": "Платежі студентів",
@@ -507,6 +509,18 @@
     "week": "Тиждень",
     "month": "Місяць",
     "year": "Рік"
+  },
+  "finance": {
+    "date": "Дата",
+    "balanceAsOfStartDay": "Баланс на початок дня",
+    "incomesCash": "Доходи (Готівка)",
+    "incomesCard": "Доходи (Картка)",
+    "expendituresCash": "Витрати (Готівка)",
+    "expendituresCard": "Витрати (Картка)",
+    "balanceCash": "Баланс (Готівка)",
+    "balanceCard": "Баланс (Картка)",
+    "totalBalance": "Загальний баланс",
+    "total": "Всього"
   },
   "profile": {
     "title": "Мій профіль",

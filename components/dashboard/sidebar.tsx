@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronRight,
   User,
+  Wallet,
 } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslation } from 'react-i18next'
@@ -62,6 +63,7 @@ const getMenuItems = (t: TranslationFunction): MenuItem[] => [
   { href: '/dashboard/admin-tasks', label: t('dashboard.adminTasks'), icon: CheckSquare },
   { href: '/dashboard/expenditures', label: t('dashboard.expenditures'), icon: FileText },
   { href: '/dashboard/teacher-salaries', label: t('dashboard.teacherSalaries'), icon: TrendingUp },
+  { href: '/dashboard/finance', label: t('dashboard.finance'), icon: Wallet },
   { href: '/dashboard/users', label: t('dashboard.users'), icon: Users, ownerOnly: true },
   { href: '/dashboard/analytics', label: t('dashboard.analytics'), icon: TrendingUp, ownerOnly: true },
 ]
