@@ -458,7 +458,7 @@
     "typeTill": "Till",
     "paymentType": "Payment Type",
     "paymentTypeCash": "Cash",
-    "paymentTypeTill": "Till",
+    "paymentTypeCard": "Card",
     "allExpenditureTypes": "All Expenditure Types",
     "allPaymentTypes": "All Payment Types",
     "expenditureType": "Expenditure Type"

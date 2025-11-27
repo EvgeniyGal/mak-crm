@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             </button>
           </div>
         )}
-        <div className={cn('p-6', size === 'xl' || size === 'lg' ? 'flex-1 overflow-y-auto' : '')}>
+        <div className={cn('p-6 overflow-y-auto', size === 'xl' || size === 'lg' ? 'flex-1' : 'max-h-[calc(90vh-120px)]')}>
           {children}
         </div>
       </div>

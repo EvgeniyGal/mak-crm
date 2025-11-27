@@ -226,7 +226,7 @@ export default function ExpendituresPage() {
     const columns: ExportColumn[] = [
       { header: t('expenditures.type'), accessor: (row) => row.type },
       { header: t('expenditures.person'), accessor: (row) => row.person || '' },
-      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'card' ? t('expenditures.paymentTypeCard') : '' },
       { header: t('expenditures.amount'), accessor: (row) => row.amount },
       { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
       { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
@@ -238,7 +238,7 @@ export default function ExpendituresPage() {
     const columns: ExportColumn[] = [
       { header: t('expenditures.type'), accessor: (row) => row.type },
       { header: t('expenditures.person'), accessor: (row) => row.person || '' },
-      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'card' ? t('expenditures.paymentTypeCard') : '' },
       { header: t('expenditures.amount'), accessor: (row) => row.amount },
       { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
       { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
@@ -297,7 +297,7 @@ export default function ExpendituresPage() {
           >
             <option value="all">{t('expenditures.allPaymentTypes')}</option>
             <option value="cash">{t('expenditures.paymentTypeCash')}</option>
-            <option value="till">{t('expenditures.paymentTypeTill')}</option>
+            <option value="card">{t('expenditures.paymentTypeCard')}</option>
           </Select>
         </div>
         <div className="flex gap-4 flex-wrap items-end">
@@ -391,7 +391,7 @@ export default function ExpendituresPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {expenditure.payment_type === 'cash' ? t('expenditures.paymentTypeCash') :
-                     expenditure.payment_type === 'till' ? t('expenditures.paymentTypeTill') :
+                     expenditure.payment_type === 'card' ? t('expenditures.paymentTypeCard') :
                      '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -504,7 +504,7 @@ export default function ExpendituresPage() {
               required
             >
               <option value="cash">{t('expenditures.paymentTypeCash')}</option>
-              <option value="till">{t('expenditures.paymentTypeTill')}</option>
+              <option value="card">{t('expenditures.paymentTypeCard')}</option>
             </Select>
           </div>
           <div>

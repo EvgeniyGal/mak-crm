@@ -240,7 +240,7 @@ export default function TeacherSalariesPage() {
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
       { header: t('teacherSalaries.teacher'), accessor: (row) => getTeacherName(row.teacher) },
-      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'card' ? t('expenditures.paymentTypeCard') : '' },
       { header: t('teacherSalaries.amount'), accessor: (row) => row.amount },
       { header: t('teacherSalaries.comment'), accessor: (row) => row.comment || '' },
       { header: t('teacherSalaries.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
@@ -251,7 +251,7 @@ export default function TeacherSalariesPage() {
   const handleExportCSV = () => {
     const columns: ExportColumn[] = [
       { header: t('teacherSalaries.teacher'), accessor: (row) => getTeacherName(row.teacher) },
-      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'card' ? t('expenditures.paymentTypeCard') : '' },
       { header: t('teacherSalaries.amount'), accessor: (row) => row.amount },
       { header: t('teacherSalaries.comment'), accessor: (row) => row.comment || '' },
       { header: t('teacherSalaries.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
@@ -379,7 +379,7 @@ export default function TeacherSalariesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {salary.payment_type === 'cash' ? t('expenditures.paymentTypeCash') :
-                     salary.payment_type === 'till' ? t('expenditures.paymentTypeTill') :
+                     salary.payment_type === 'card' ? t('expenditures.paymentTypeCard') :
                      '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -487,7 +487,7 @@ export default function TeacherSalariesPage() {
               required
             >
               <option value="cash">{t('expenditures.paymentTypeCash')}</option>
-              <option value="till">{t('expenditures.paymentTypeTill')}</option>
+              <option value="card">{t('expenditures.paymentTypeCard')}</option>
             </Select>
           </div>
           <div>

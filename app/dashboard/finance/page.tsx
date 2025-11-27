@@ -194,7 +194,7 @@ export default function FinancePage() {
         prevExpenditures?.forEach((expenditure: any) => {
           if (expenditure.payment_type === 'cash') {
             initialBalanceCash -= expenditure.amount
-          } else if (expenditure.payment_type === 'till') {
+          } else if (expenditure.payment_type === 'card') {
             initialBalanceCard -= expenditure.amount
           }
         })
@@ -203,7 +203,7 @@ export default function FinancePage() {
         prevSalaries?.forEach((salary: any) => {
           if (salary.payment_type === 'cash') {
             initialBalanceCash -= salary.amount
-          } else if (salary.payment_type === 'till') {
+          } else if (salary.payment_type === 'card') {
             initialBalanceCard -= salary.amount
           }
         })
@@ -268,7 +268,7 @@ export default function FinancePage() {
         dayExpenditures.forEach((expenditure: any) => {
           if (expenditure.payment_type === 'cash') {
             expendituresCash += expenditure.amount
-          } else if (expenditure.payment_type === 'till') {
+          } else if (expenditure.payment_type === 'card') {
             expendituresCard += expenditure.amount
           }
         })
@@ -277,7 +277,7 @@ export default function FinancePage() {
         daySalaries.forEach((salary: any) => {
           if (salary.payment_type === 'cash') {
             expendituresCash += salary.amount
-          } else if (salary.payment_type === 'till') {
+          } else if (salary.payment_type === 'card') {
             expendituresCard += salary.amount
           }
         })

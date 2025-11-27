@@ -457,7 +457,7 @@
     "typeTill": "Каса",
     "paymentType": "Тип оплати",
     "paymentTypeCash": "Готівка",
-    "paymentTypeTill": "Каса",
+    "paymentTypeCard": "Картка",
     "allExpenditureTypes": "Всі типи витрат",
     "allPaymentTypes": "Всі типи оплат",
     "expenditureType": "Тип витрати"
