@@ -52,9 +52,12 @@ interface PackageType {
 }
 
 interface Schedule {
+  id?: string
   week_day: number
   start_time: string
   end_time: string
+  time_slot?: string // For existing schedules from DB
+  class_id?: string
 }
 
 export default function CoursesPage() {
@@ -67,6 +70,7 @@ export default function CoursesPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [packageTypes, setPackageTypes] = useState<PackageType[]>([])
   const [pendingPackages, setPendingPackages] = useState<Omit<PackageType, 'id' | 'class_id'>[]>([]) // For new courses
+  const [schedules, setSchedules] = useState<Schedule[]>([]) // For existing courses
   const [pendingSchedules, setPendingSchedules] = useState<Schedule[]>([]) // For new courses
   const [showPackageForm, setShowPackageForm] = useState(false)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
@@ -98,6 +102,7 @@ export default function CoursesPage() {
     end_time: '',
   })
   const [editingScheduleIndex, setEditingScheduleIndex] = useState<number | null>(null)
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null)
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
@@ -189,6 +194,33 @@ export default function CoursesPage() {
     }
   }, [supabase, editingCourse, formData.name, courses])
 
+  const fetchSchedules = useCallback(async () => {
+    const courseId = editingCourse?.id
+    if (!courseId) return
+
+    try {
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('class_id', courseId)
+        .order('week_day', { ascending: true })
+        .order('time_slot', { ascending: true })
+
+      if (error) throw error
+      // Transform DB format to component format
+      const transformedSchedules: Schedule[] = (data || []).map(s => ({
+        id: s.id,
+        week_day: s.week_day,
+        start_time: s.time_slot || '',
+        end_time: s.end_time || '',
+        class_id: s.class_id,
+      }))
+      setSchedules(transformedSchedules)
+    } catch (error) {
+      console.error('Error fetching schedules:', error)
+    }
+  }, [supabase, editingCourse])
+
   useEffect(() => {
     fetchCourses()
     fetchTeachers()
@@ -201,6 +233,14 @@ export default function CoursesPage() {
       fetchPackageTypes()
     }
   }, [editingCourse, formData.name, fetchPackageTypes])
+
+  useEffect(() => {
+    if (editingCourse) {
+      fetchSchedules()
+    } else {
+      setSchedules([])
+    }
+  }, [editingCourse, fetchSchedules])
 
   const handleCreatePackageType = async () => {
     if (!formData.name && !editingCourse) {
@@ -332,39 +372,123 @@ export default function CoursesPage() {
     setShowPackageForm(false)
   }
 
-  const handleCreateSchedule = () => {
+  const handleCreateSchedule = async () => {
     if (!scheduleFormData.start_time) {
       alert('Будь ласка, введіть час початку')
       return
     }
 
-    if (editingScheduleIndex !== null) {
-      // Update existing schedule
-      const updated = [...pendingSchedules]
-      updated[editingScheduleIndex] = scheduleFormData
-      setPendingSchedules(updated)
+    // If editing existing course, save to database immediately
+    if (editingCourse?.id) {
+      try {
+        if (editingSchedule && editingSchedule.id) {
+          // Update existing schedule
+          const { error } = await supabase
+            .from('schedules')
+            .update({
+              week_day: scheduleFormData.week_day,
+              time_slot: scheduleFormData.start_time,
+              end_time: scheduleFormData.end_time || null,
+            })
+            .eq('id', editingSchedule.id)
+
+          if (error) throw error
+        } else {
+          // Create new schedule for existing course
+          const { error } = await supabase
+            .from('schedules')
+            .insert([{
+              class_id: editingCourse.id,
+              room_id: formData.room_id || null,
+              week_day: scheduleFormData.week_day,
+              time_slot: scheduleFormData.start_time,
+              end_time: scheduleFormData.end_time || null,
+            }])
+
+          if (error) throw error
+        }
+        
+        await fetchSchedules()
+        setScheduleFormData({
+          week_day: 0,
+          start_time: '',
+          end_time: '',
+        })
+        setShowScheduleForm(false)
+        setEditingSchedule(null)
+      } catch (error) {
+        console.error('Error saving schedule:', error)
+        alert(t('schedules.errorSaving') || 'Помилка збереження розкладу')
+      }
     } else {
-      // Add new schedule
-      setPendingSchedules([...pendingSchedules, scheduleFormData])
+      // For new course, store in pending schedules
+      if (editingScheduleIndex !== null) {
+        // Update existing pending schedule
+        const updated = [...pendingSchedules]
+        updated[editingScheduleIndex] = scheduleFormData
+        setPendingSchedules(updated)
+      } else {
+        // Add new pending schedule
+        setPendingSchedules([...pendingSchedules, scheduleFormData])
+      }
+      
+      setScheduleFormData({
+        week_day: 0,
+        start_time: '',
+        end_time: '',
+      })
+      setShowScheduleForm(false)
+      setEditingScheduleIndex(null)
+      setEditingSchedule(null)
+    }
+  }
+
+  const handleEditSchedule = (schedule: Schedule, index?: number) => {
+    if (editingCourse) {
+      // Editing existing schedule
+      setEditingSchedule(schedule)
+      setScheduleFormData({
+        week_day: schedule.week_day,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+      })
+      setShowScheduleForm(true)
+    } else {
+      // Editing pending schedule
+      if (index !== undefined) {
+        setEditingScheduleIndex(index)
+        setScheduleFormData(pendingSchedules[index])
+        setShowScheduleForm(true)
+      }
+    }
+  }
+
+  const handleDeleteSchedule = async (schedule: Schedule, index?: number) => {
+    if (!confirm(t('schedules.confirmDelete') || 'Ви впевнені, що хочете видалити цей розклад?')) {
+      return
     }
 
-    setScheduleFormData({
-      week_day: 0,
-      start_time: '',
-      end_time: '',
-    })
-    setShowScheduleForm(false)
-    setEditingScheduleIndex(null)
-  }
+    // If it's a pending schedule (for new course), remove from pendingSchedules
+    if (index !== undefined && !editingCourse) {
+      setPendingSchedules(pendingSchedules.filter((_, i) => i !== index))
+      return
+    }
 
-  const handleEditSchedule = (index: number) => {
-    setEditingScheduleIndex(index)
-    setScheduleFormData(pendingSchedules[index])
-    setShowScheduleForm(true)
-  }
+    // Otherwise, delete from database (for existing course)
+    if (schedule.id && editingCourse) {
+      try {
+        const { error } = await supabase
+          .from('schedules')
+          .delete()
+          .eq('id', schedule.id)
 
-  const handleDeleteSchedule = (index: number) => {
-    setPendingSchedules(pendingSchedules.filter((_, i) => i !== index))
+        if (error) throw error
+        await fetchSchedules()
+      } catch (error) {
+        console.error('Error deleting schedule:', error)
+        alert(t('schedules.errorDeleting') || 'Помилка видалення розкладу')
+      }
+    }
   }
 
   const handleCancelScheduleEdit = () => {
@@ -375,6 +499,7 @@ export default function CoursesPage() {
     })
     setShowScheduleForm(false)
     setEditingScheduleIndex(null)
+    setEditingSchedule(null)
   }
 
   const getAvailableSeats = (courseItem: Course) => {
@@ -500,6 +625,7 @@ export default function CoursesPage() {
     setEditingPackageType(null)
     setPendingPackages([])
     setPendingSchedules([])
+    setSchedules([])
     setPackageFormData({
       name: '',
       amount: 0,
@@ -514,6 +640,7 @@ export default function CoursesPage() {
     setShowPackageForm(false)
     setShowScheduleForm(false)
     setEditingScheduleIndex(null)
+    setEditingSchedule(null)
   }
 
   const availableSeats = formData.capacity - formData.student_ids.length
@@ -1061,24 +1188,22 @@ export default function CoursesPage() {
               <label className="block text-sm font-medium text-gray-700">
                 {t('schedules.title')}
               </label>
-              {!editingCourse && (
-                <Button
-                  type="button"
-                  variant={showScheduleForm ? "outline" : "success"}
-                  size="sm"
-                  onClick={() => setShowScheduleForm(!showScheduleForm)}
-                >
-                  {showScheduleForm ? t('common.cancel') : t('schedules.addSchedule')}
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant={showScheduleForm ? "outline" : "success"}
+                size="sm"
+                onClick={() => setShowScheduleForm(!showScheduleForm)}
+              >
+                {showScheduleForm ? t('common.cancel') : t('schedules.addSchedule')}
+              </Button>
             </div>
-            {showScheduleForm && !editingCourse && (
+            {showScheduleForm && (
               <div className="mb-4 p-4 border-2 border-gray-400 rounded-lg bg-gray-50">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-900">
-                    {editingScheduleIndex !== null ? t('schedules.editSchedule') : t('schedules.addSchedule')}
+                    {(editingSchedule || editingScheduleIndex !== null) ? t('schedules.editSchedule') : t('schedules.addSchedule')}
                   </h3>
-                  {editingScheduleIndex !== null && (
+                  {(editingSchedule || editingScheduleIndex !== null) && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1127,13 +1252,13 @@ export default function CoursesPage() {
                 <div className="flex gap-2 mt-4">
                   <Button
                     type="button"
-                    variant={editingScheduleIndex !== null ? "default" : "success"}
+                    variant={(editingSchedule || editingScheduleIndex !== null) ? "default" : "success"}
                     onClick={handleCreateSchedule}
                     disabled={!scheduleFormData.start_time}
                   >
-                    {editingScheduleIndex !== null ? t('common.save') : t('schedules.addSchedule')}
+                    {(editingSchedule || editingScheduleIndex !== null) ? t('common.save') : t('schedules.addSchedule')}
                   </Button>
-                  {editingScheduleIndex !== null && (
+                  {(editingSchedule || editingScheduleIndex !== null) && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1146,7 +1271,37 @@ export default function CoursesPage() {
               </div>
             )}
             <div className="mb-4 space-y-2 max-h-48 overflow-y-auto border-2 border-gray-400 rounded p-3 bg-white">
-              {pendingSchedules.map((schedule, index) => (
+              {/* Show existing schedules for editing course */}
+              {editingCourse && schedules.map((schedule) => (
+                <div key={schedule.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">{weekDays[schedule.week_day]}</span>
+                    <span className="text-sm text-gray-600 ml-2">
+                      {schedule.start_time} {schedule.end_time ? `- ${schedule.end_time}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditSchedule(schedule)}
+                      className="text-blue-600 hover:text-blue-800 p-1"
+                      title="Редагувати"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSchedule(schedule)}
+                      className="text-red-600 hover:text-red-800 p-1"
+                      title="Видалити"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {/* Show pending schedules for new course */}
+              {!editingCourse && pendingSchedules.map((schedule, index) => (
                 <div key={index} className="flex justify-between items-center p-2 rounded hover:bg-gray-50 border border-gray-200">
                   <div className="flex-1">
                     <span className="text-sm font-medium text-gray-900">{weekDays[schedule.week_day]}</span>
@@ -1157,7 +1312,7 @@ export default function CoursesPage() {
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => handleEditSchedule(index)}
+                      onClick={() => handleEditSchedule(schedule, index)}
                       className="text-blue-600 hover:text-blue-800 p-1"
                       title="Редагувати"
                     >
@@ -1165,7 +1320,7 @@ export default function CoursesPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteSchedule(index)}
+                      onClick={() => handleDeleteSchedule(schedule, index)}
                       className="text-red-600 hover:text-red-800 p-1"
                       title="Видалити"
                     >
@@ -1174,7 +1329,8 @@ export default function CoursesPage() {
                   </div>
                 </div>
               ))}
-              {pendingSchedules.length === 0 && (
+              {((editingCourse && schedules.length === 0) ||
+                (!editingCourse && pendingSchedules.length === 0)) && (
                 <p className="text-sm text-gray-500 text-center py-2">Немає розкладу</p>
               )}
             </div>

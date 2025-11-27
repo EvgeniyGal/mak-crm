@@ -419,7 +419,7 @@ export default function StudentPaymentsPage() {
               >
                 <option value="cash">{tt('common.cash', 'Готівка')}</option>
                 <option value="card">{tt('common.card', 'Картка')}</option>
-                <option value="test">{tt('common.test', 'Тестовий')}</option>
+                <option value="free">{tt('common.free', 'Безплатне')}</option>
               </Select>
             </div>
           </div>
@@ -482,7 +482,7 @@ export default function StudentPaymentsPage() {
             <option value="all">{t('common.allPaymentTypes')}</option>
             <option value="cash">{t('common.cash')}</option>
             <option value="card">{t('common.card')}</option>
-            <option value="test">{t('common.test')}</option>
+            <option value="free">{t('common.free')}</option>
           </Select>
         </div>
         <div className="flex gap-4">

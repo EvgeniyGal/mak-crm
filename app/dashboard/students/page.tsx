@@ -1134,7 +1134,7 @@ export default function StudentsPage() {
                           <td className="px-4 py-2 text-sm text-gray-500">
                             {payment.type === 'cash' ? t('payments.cash') : 
                              payment.type === 'card' ? t('payments.card') : 
-                             t('payments.test')}
+                             t('payments.free')}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-500">{payment.available_lessons}</td>
                         </tr>

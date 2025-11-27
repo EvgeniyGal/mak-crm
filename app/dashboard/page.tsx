@@ -128,34 +128,47 @@ export default function DashboardPage() {
           // Get presences for this student
           const studentPresences = presencesData.filter(p => p.student_id === student.id)
 
-          // Check the last 3 attendances - they should all be marked as absent
-          const lastThreeAttendances = studentAttendances.slice(0, 3)
+          // Check for 3 consecutive absences starting from the most recent attendance
+          let consecutiveAbsences = 0
+          let lastAbsentDate: string | null = null
           
-          // Check if all 3 have presence records marked as 'absent'
-          const lastThreePresences = lastThreeAttendances.map(attendance => {
-            return studentPresences.find(p => p.attendance_id === attendance.id)
-          }).filter(Boolean)
-
-          // Only count if all 3 have presence records AND all are marked as 'absent'
-          if (lastThreePresences.length === 3) {
-            const allAbsent = lastThreePresences.every(p => p?.status === 'absent')
+          for (const attendance of studentAttendances) {
+            const presence = studentPresences.find(p => p.attendance_id === attendance.id)
             
-            if (allAbsent) {
-              // Get the most recent attendance date
-              const lastAttendanceDate = lastThreeAttendances[0]?.date || null
-              const enrolledClasses = enrolledClassIds
-                .map((id: string) => classesData.find(c => c.id === id)?.name || id)
-                .filter((name: string) => name !== undefined)
-
-              absentStudentsList.push({
-                student_id: student.id,
-                student_name: `${student.student_first_name} ${student.student_last_name}`,
-                parent_name: `${student.parent_first_name} ${student.parent_middle_name || ''}`.trim(),
-                phone: student.phone || '',
-                enrolled_classes: enrolledClasses,
-                last_attendance_date: lastAttendanceDate,
-              })
+            // If no presence record OR status is 'absent', count as absent
+            if (!presence || presence.status === 'absent') {
+              consecutiveAbsences++
+              if (consecutiveAbsences === 1) {
+                lastAbsentDate = attendance.date
+              }
+              // If we found 3 consecutive absences, we're done
+              if (consecutiveAbsences >= 3) {
+                break
+              }
+            } else {
+              // If we encounter a present or absent with valid reason, reset the counter
+              // Only reset if we haven't found 3 consecutive yet
+              if (consecutiveAbsences < 3) {
+                consecutiveAbsences = 0
+                lastAbsentDate = null
+              }
             }
+          }
+
+          // If student has 3 or more consecutive absences
+          if (consecutiveAbsences >= 3) {
+            const enrolledClasses = enrolledClassIds
+              .map((id: string) => classesData.find(c => c.id === id)?.name || id)
+              .filter((name: string) => name !== undefined)
+
+            absentStudentsList.push({
+              student_id: student.id,
+              student_name: `${student.student_first_name} ${student.student_last_name}`,
+              parent_name: `${student.parent_first_name} ${student.parent_middle_name || ''}`.trim(),
+              phone: student.phone || '',
+              enrolled_classes: enrolledClasses,
+              last_attendance_date: lastAbsentDate,
+            })
           }
         }
       }

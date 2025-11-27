@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
     package_type_id UUID NOT NULL REFERENCES public.package_types(id) ON DELETE RESTRICT,
     student_presence_ids UUID[] DEFAULT ARRAY[]::UUID[],
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('paid', 'pending')),
-    type TEXT NOT NULL CHECK (type IN ('cash', 'card', 'test')),
+    type TEXT NOT NULL CHECK (type IN ('cash', 'card', 'free')),
     available_lesson_count INTEGER NOT NULL DEFAULT 0 CHECK (available_lesson_count >= 0),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

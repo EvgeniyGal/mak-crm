@@ -40,39 +40,62 @@ const CustomToolbar = () => {
   return <div style={{ display: 'none' }} /> // Hide the toolbar completely
 }
 
-// Custom event component with button to view day details
-// This component will be used inside the SchedulesPage component to access the handler
-const createCustomEvent = (onViewDayDetails: (date: string) => void) => {
+// Custom event component without button (button moved to header)
+const createCustomEvent = () => {
   return ({ event }: { event: EventWithId & { resource: Schedule } }) => {
-    const handleClick = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      e.preventDefault()
-      const eventDate = event.start instanceof Date ? event.start : event.start ? new Date(event.start) : new Date()
-      onViewDayDetails(moment(eventDate).format('YYYY-MM-DD'))
-    }
-
     return (
-      <div className="rbc-event-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '2px 4px', height: '100%' }}>
+      <div className="rbc-event-content" style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '2px 4px', height: '100%' }}>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {event.title}
         </span>
+      </div>
+    )
+  }
+}
+
+// Custom day header component with button to view day details
+const createCustomDayHeader = (onViewDayDetails: (date: string) => void) => {
+  return (props: { label: string; date: Date; [key: string]: unknown }) => {
+    const { label, date } = props
+    const headerDate = date instanceof Date ? date : new Date(date)
+    
+    const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+      onViewDayDetails(moment(headerDate).format('YYYY-MM-DD'))
+    }
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 4px' }}>
+        <span>{label}</span>
         <button
           onClick={handleClick}
           onMouseDown={(e) => e.stopPropagation()}
           style={{
-            marginLeft: '4px',
-            padding: '2px 4px',
-            background: 'rgba(255, 255, 255, 0.3)',
-            border: 'none',
-            borderRadius: '3px',
+            padding: '2px 6px',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '4px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
+            gap: '4px',
             flexShrink: 0,
+            fontSize: '11px',
+            color: '#2563eb',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'
+            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'
+            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
           }}
           title="Переглянути деталі дня"
         >
-          <Eye size={12} />
+          <Eye size={14} />
         </button>
       </div>
     )
@@ -140,6 +163,7 @@ export default function SchedulesPage() {
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false)
   const [selectedScheduleForAttendance, setSelectedScheduleForAttendance] = useState<Schedule | null>(null)
   const [selectedDateForAttendance, setSelectedDateForAttendance] = useState<string>('')
+  const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(null)
   const [students, setStudents] = useState<Array<{ id: string; student_first_name: string; student_last_name: string }>>([])
   const [classStudents, setClassStudents] = useState<Array<{ id: string; student_first_name: string; student_last_name: string }>>([])
   const [studentPresences, setStudentPresences] = useState<Record<string, { status: string; comment: string }>>({})
@@ -724,22 +748,81 @@ export default function SchedulesPage() {
     setSelectedScheduleForAttendance(schedule)
     setSelectedDateForAttendance(date)
     
-    // Get class students
-    const selectedClass = classes.find(c => c.id === schedule.class_id)
-    if (selectedClass && selectedClass.student_ids) {
-      const classStudents = students.filter(s => selectedClass!.student_ids!.includes(s.id))
-      setClassStudents(classStudents)
+    // Check if attendance already exists for this date and class
+    try {
+      const { data: existingAttendance, error: attendanceError } = await supabase
+        .from('attendances')
+        .select('id')
+        .eq('date', date)
+        .eq('class_id', schedule.class_id)
+        .single()
 
-      // Fetch available lessons per student and initialize presences
-      const presences: Record<string, { status: string; comment: string }> = {}
-      const lessonsMap: Record<string, number> = {}
-      for (const student of classStudents) {
-        const payment = await getLatestPaymentForClass(student.id, schedule.class_id)
-        lessonsMap[student.id] = payment?.available_lesson_count ?? 0
-        presences[student.id] = { status: 'present', comment: '' }
+      if (attendanceError && attendanceError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error checking for existing attendance:', attendanceError)
       }
-      setStudentAvailableLessons(lessonsMap)
-      setStudentPresences(presences)
+
+      if (existingAttendance) {
+        // Edit mode - load existing attendance
+        setEditingAttendanceId(existingAttendance.id)
+        
+        // Fetch existing presences
+        const { data: existingPresences, error: presencesError } = await supabase
+          .from('student_presences')
+          .select('student_id, status, comment')
+          .eq('attendance_id', existingAttendance.id)
+
+        if (presencesError) {
+          console.error('Error fetching existing presences:', presencesError)
+        }
+
+        // Get class students
+        const selectedClass = classes.find(c => c.id === schedule.class_id)
+        if (selectedClass && selectedClass.student_ids) {
+          const classStudents = students.filter(s => selectedClass!.student_ids!.includes(s.id))
+          setClassStudents(classStudents)
+
+          // Fetch available lessons per student and load existing presences
+          const presences: Record<string, { status: string; comment: string }> = {}
+          const lessonsMap: Record<string, number> = {}
+          for (const student of classStudents) {
+            const payment = await getLatestPaymentForClass(student.id, schedule.class_id)
+            lessonsMap[student.id] = payment?.available_lesson_count ?? 0
+            
+            // Load existing presence if exists, otherwise default to 'present'
+            const existingPresence = existingPresences?.find(p => p.student_id === student.id)
+            presences[student.id] = existingPresence 
+              ? { status: existingPresence.status, comment: existingPresence.comment || '' }
+              : { status: 'present', comment: '' }
+          }
+          setStudentAvailableLessons(lessonsMap)
+          setStudentPresences(presences)
+        }
+      } else {
+        // Add mode - initialize with defaults
+        setEditingAttendanceId(null)
+        
+        // Get class students
+        const selectedClass = classes.find(c => c.id === schedule.class_id)
+        if (selectedClass && selectedClass.student_ids) {
+          const classStudents = students.filter(s => selectedClass!.student_ids!.includes(s.id))
+          setClassStudents(classStudents)
+
+          // Fetch available lessons per student and initialize presences
+          const presences: Record<string, { status: string; comment: string }> = {}
+          const lessonsMap: Record<string, number> = {}
+          for (const student of classStudents) {
+            const payment = await getLatestPaymentForClass(student.id, schedule.class_id)
+            lessonsMap[student.id] = payment?.available_lesson_count ?? 0
+            presences[student.id] = { status: 'present', comment: '' }
+          }
+          setStudentAvailableLessons(lessonsMap)
+          setStudentPresences(presences)
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleOpenAttendanceModal:', error)
+      // On error, default to add mode
+      setEditingAttendanceId(null)
     }
     
     setIsAttendanceModalOpen(true)
@@ -749,24 +832,100 @@ export default function SchedulesPage() {
     e.preventDefault()
     if (!selectedScheduleForAttendance) return
 
-    // Check if any students don't have payment
-    if (classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1)) {
+    const isEditing = editingAttendanceId !== null
+
+    // Check if any students don't have payment (only for new attendance)
+    if (!isEditing && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1)) {
       alert(t('attendances.studentsWithoutPayment') || 'Деякі студенти не мають платежу. Будь ласка, створіть платіж перед додаванням відвідуваності.')
       return
     }
 
     try {
-      // Create attendance
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from('attendances')
-        .insert({
-          date: selectedDateForAttendance,
-          class_id: selectedScheduleForAttendance.class_id,
-        })
-        .select()
-        .single()
+      let attendanceId: string
 
-      if (attendanceError) throw attendanceError
+      if (isEditing && editingAttendanceId) {
+        // Edit mode - restore payment counts from old presences
+        const { data: oldPresences } = await supabase
+          .from('student_presences')
+          .select('student_id, status, id')
+          .eq('attendance_id', editingAttendanceId)
+
+        // Restore payment counts
+        if (oldPresences) {
+          for (const presence of oldPresences) {
+            if (presence.status !== 'absent with valid reason') {
+              // Try to restore to the payment that originally had this presence
+              const { data: payments } = await supabase
+                .from('payments')
+                .select('id, available_lesson_count, student_presence_ids')
+                .eq('student_id', presence.student_id)
+                .eq('class_id', selectedScheduleForAttendance.class_id)
+                .order('created_at', { ascending: false })
+
+              if (payments && payments.length > 0) {
+                // Find payment that has this presence ID
+                let paymentToRestore = payments.find(p => 
+                  p.student_presence_ids && p.student_presence_ids.includes(presence.id)
+                )
+
+                // If not found, try to restore to paid payment first
+                if (!paymentToRestore) {
+                  paymentToRestore = payments.find(p => p.status === 'paid')
+                }
+
+                // If still not found, use the most recent payment
+                if (!paymentToRestore) {
+                  paymentToRestore = payments[0]
+                }
+
+                if (paymentToRestore) {
+                  const newPresenceIds = (paymentToRestore.student_presence_ids || []).filter(id => id !== presence.id)
+                  await supabase
+                    .from('payments')
+                    .update({
+                      available_lesson_count: paymentToRestore.available_lesson_count + 1,
+                      student_presence_ids: newPresenceIds,
+                    })
+                    .eq('id', paymentToRestore.id)
+                }
+              }
+            }
+          }
+        }
+
+        // Update existing attendance (though date and class_id shouldn't change)
+        const { data, error: updateError } = await supabase
+          .from('attendances')
+          .update({
+            date: selectedDateForAttendance,
+            class_id: selectedScheduleForAttendance.class_id,
+          })
+          .eq('id', editingAttendanceId)
+          .select()
+          .single()
+
+        if (updateError) throw updateError
+        attendanceId = data.id
+
+        // Delete existing presences
+        await supabase
+          .from('student_presences')
+          .delete()
+          .eq('attendance_id', attendanceId)
+      } else {
+        // Create new attendance
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendances')
+          .insert({
+            date: selectedDateForAttendance,
+            class_id: selectedScheduleForAttendance.class_id,
+          })
+          .select()
+          .single()
+
+        if (attendanceError) throw attendanceError
+        attendanceId = attendanceData.id
+      }
 
       // Create student presences and update payments
       for (const [studentId, presence] of Object.entries(studentPresences)) {
@@ -774,7 +933,7 @@ export default function SchedulesPage() {
           .from('student_presences')
           .insert({
             student_id: studentId,
-            attendance_id: attendanceData.id,
+            attendance_id: attendanceId,
             status: presence.status,
             comment: presence.comment || null,
           })
@@ -808,14 +967,19 @@ export default function SchedulesPage() {
       setIsAttendanceModalOpen(false)
       setSelectedScheduleForAttendance(null)
       setSelectedDateForAttendance('')
+      setEditingAttendanceId(null)
       setStudentPresences({})
       setClassStudents([])
-      const successMsg = t('attendances.successMessage')
-      alert(successMsg && successMsg !== 'attendances.successMessage' ? successMsg : 'Відвідуваність успішно створена')
+      const successMsg = isEditing 
+        ? (t('attendances.editSuccessMessage') || 'Відвідуваність успішно оновлена')
+        : (t('attendances.successMessage') || 'Відвідуваність успішно створена')
+      alert(successMsg)
     } catch (error) {
-      console.error('Error creating attendance:', error)
-      const errorMsg = t('attendances.errorMessage')
-      alert(errorMsg && errorMsg !== 'attendances.errorMessage' ? errorMsg : 'Помилка створення відвідуваності')
+      console.error('Error saving attendance:', error)
+      const errorMsg = isEditing
+        ? (t('attendances.editErrorMessage') || 'Помилка оновлення відвідуваності')
+        : (t('attendances.errorMessage') || 'Помилка створення відвідуваності')
+      alert(errorMsg)
     }
   }
 
@@ -1416,7 +1580,8 @@ export default function SchedulesPage() {
             eventPropGetter={eventStyleGetter}
             components={{
               toolbar: CustomToolbar,
-              event: createCustomEvent(handleViewDayDetails),
+              event: createCustomEvent(),
+              header: createCustomDayHeader(handleViewDayDetails),
             }}
             messages={{
               next: t('common.next'),
@@ -1651,10 +1816,11 @@ export default function SchedulesPage() {
           setIsAttendanceModalOpen(false)
           setSelectedScheduleForAttendance(null)
           setSelectedDateForAttendance('')
+          setEditingAttendanceId(null)
           setStudentPresences({})
           setClassStudents([])
         }}
-        title={t('attendances.addAttendance') || 'Додати відвідуваність'}
+        title={editingAttendanceId ? (t('attendances.editAttendance') || 'Редагувати відвідуваність') : (t('attendances.addAttendance') || 'Додати відвідуваність')}
         size="xl"
       >
         <form onSubmit={handleCreateAttendance} className="flex flex-col h-full space-y-4">
@@ -1778,7 +1944,7 @@ export default function SchedulesPage() {
           )}
 
           <div className="flex flex-col gap-2 flex-shrink-0 pt-4 border-t">
-            {classStudents.length > 0 && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1) && (
+            {!editingAttendanceId && classStudents.length > 0 && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1) && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
                 <p className="text-sm text-red-800">
                   {t('attendances.studentsWithoutPayment') || 'Деякі студенти не мають платежу. Будь ласка, створіть платіж перед додаванням відвідуваності.'}
@@ -1793,6 +1959,7 @@ export default function SchedulesPage() {
                   setIsAttendanceModalOpen(false)
                   setSelectedScheduleForAttendance(null)
                   setSelectedDateForAttendance('')
+                  setEditingAttendanceId(null)
                   setStudentPresences({})
                   setClassStudents([])
                 }}
@@ -1804,10 +1971,10 @@ export default function SchedulesPage() {
                 variant="success"
                 disabled={
                   classStudents.length === 0 || 
-                  classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1)
+                  (!editingAttendanceId && classStudents.some(student => (studentAvailableLessons[student.id] ?? 0) < 1))
                 }
               >
-                {t('attendances.addAttendance') || 'Додати відвідуваність'}
+                {editingAttendanceId ? (t('attendances.saveAttendance') || 'Зберегти відвідуваність') : (t('attendances.addAttendance') || 'Додати відвідуваність')}
               </Button>
             </div>
           </div>
@@ -1960,7 +2127,7 @@ export default function SchedulesPage() {
               <Select value={paymentForm.type} onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}>
                 <option value="cash">{t('payments.cash') || 'Готівка'}</option>
                 <option value="card">{t('payments.card') || 'Картка'}</option>
-                <option value="test">{t('payments.test') || 'Тест'}</option>
+                <option value="free">{t('payments.free') || 'Безплатне'}</option>
               </Select>
             </div>
           </div>

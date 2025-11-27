@@ -323,7 +323,7 @@ export default function PaymentsPage() {
       { header: t('payments.packageType'), accessor: (row) => row.package_types?.name || '' },
       { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
       { header: t('common.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : t('payments.pending') },
-      { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.test') },
+      { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.free') },
       { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
       { header: t('payments.comment'), accessor: (row) => row.comment || '' },
@@ -338,7 +338,7 @@ export default function PaymentsPage() {
       { header: t('payments.packageType'), accessor: (row) => row.package_types?.name || '' },
       { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
       { header: t('common.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : t('payments.pending') },
-      { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.test') },
+      { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.free') },
       { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
       { header: t('payments.comment'), accessor: (row) => row.comment || '' },
@@ -398,7 +398,7 @@ export default function PaymentsPage() {
             <option value="all">{t('common.all')} {t('common.types')}</option>
             <option value="cash">{t('payments.cash')}</option>
             <option value="card">{t('payments.card')}</option>
-            <option value="test">{t('payments.test')}</option>
+            <option value="free">{t('payments.free')}</option>
           </Select>
           <Select
             value={courseFilter}
@@ -529,7 +529,7 @@ export default function PaymentsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.type === 'cash' ? t('payments.cash') : payment.type === 'card' ? t('payments.card') : t('payments.test')}
+                    {payment.type === 'cash' ? t('payments.cash') : payment.type === 'card' ? t('payments.card') : t('payments.free')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`font-medium ${
@@ -683,7 +683,7 @@ export default function PaymentsPage() {
               >
                 <option value="cash">{t('payments.cash')}</option>
                 <option value="card">{t('payments.card')}</option>
-                <option value="test">{t('payments.test')}</option>
+                <option value="free">{t('payments.free')}</option>
               </Select>
             </div>
           </div>

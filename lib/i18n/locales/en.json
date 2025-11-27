@@ -65,7 +65,7 @@
     "allLessons": "All Lessons",
     "cash": "Cash",
     "card": "Card",
-    "test": "Test",
+    "free": "Free",
     "paid": "Paid",
     "pending": "Pending",
     "today": "Today"
@@ -100,7 +100,8 @@
     "analytics": "Analytics",
     "title": "Dashboard",
     "firstLesson": "Test Lesson",
-    "absentStudents": "Absent Students",
+    "absentStudents": "Students with Three Consecutive Absences",
+    "noAbsentStudents": "No students with three consecutive absences",
     "birthdays": "Birthdays",
     "finance": "Finance",
     "today": "Today",
@@ -338,7 +339,10 @@
     "totalPerDay": "Total per day",
     "studentsWithoutPayment": "Some students do not have paid lessons. Please add a payment before adding attendance.",
     "successMessage": "Attendance created successfully",
-    "errorMessage": "Error creating attendance"
+    "errorMessage": "Error creating attendance",
+    "editSuccessMessage": "Attendance updated successfully",
+    "editErrorMessage": "Error updating attendance",
+    "saveAttendance": "Save Attendance"
   },
   "classAttendances": {
     "title": "Class Attendances",
@@ -372,7 +376,7 @@
     "type": "Type",
     "cash": "Cash",
     "card": "Card",
-    "test": "Test",
+    "free": "Free",
     "status": "Status",
     "paid": "Paid",
     "pending": "Pending",
@@ -448,7 +452,10 @@
     "comment": "Comment",
     "typeRegular": "Regular",
     "typeStaff": "Staff",
-    "typeTill": "Till"
+    "typeTill": "Till",
+    "paymentType": "Payment Type",
+    "paymentTypeCash": "Cash",
+    "paymentTypeTill": "Till"
   },
   "teacherSalaries": {
     "title": "Teacher Salaries",

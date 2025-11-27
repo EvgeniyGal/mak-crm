@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
       const paymentTypesData = [
         { name: 'Готівка', value: payments?.filter(p => p.type === 'cash').length || 0 },
         { name: 'Картка', value: payments?.filter(p => p.type === 'card').length || 0 },
-        { name: 'Тест', value: payments?.filter(p => p.type === 'test').length || 0 },
+        { name: 'Безплатне', value: payments?.filter(p => p.type === 'free').length || 0 },
       ]
 
       // Get expenditures and salaries

@@ -42,7 +42,7 @@ export default function NewStudentsPage() {
       const { data: testPaymentsThisMonth } = await supabase
         .from('payments')
         .select('student_id, created_at')
-        .eq('type', 'test')
+        .eq('type', 'free')
         .gte('created_at', monthStart.toISOString())
         .lte('created_at', monthEnd.toISOString())
         .order('created_at', { ascending: true })

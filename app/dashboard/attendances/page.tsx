@@ -1119,7 +1119,7 @@ export default function AttendancesPage() {
               <Select value={paymentForm.type} onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}>
                 <option value="cash">{t('payments.cash')}</option>
                 <option value="card">{t('payments.card')}</option>
-                <option value="test">{t('payments.test')}</option>
+                <option value="free">{t('payments.free')}</option>
               </Select>
             </div>
           </div>

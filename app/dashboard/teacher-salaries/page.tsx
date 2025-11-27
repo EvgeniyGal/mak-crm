@@ -16,6 +16,7 @@ import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 interface TeacherSalary {
   id: string
   teacher: string
+  payment_type: string | null
   amount: number
   comment: string | null
   created_at: string
@@ -43,6 +44,7 @@ export default function TeacherSalariesPage() {
 
   const [formData, setFormData] = useState({
     teacher: '',
+    payment_type: 'cash',
     amount: 0,
     comment: '',
   })
@@ -86,6 +88,7 @@ export default function TeacherSalariesPage() {
     try {
       const submitData = {
         ...formData,
+        payment_type: formData.payment_type || null,
         comment: formData.comment || null,
       }
 
@@ -115,6 +118,7 @@ export default function TeacherSalariesPage() {
     setEditingSalary(salary)
     setFormData({
       teacher: salary.teacher,
+      payment_type: salary.payment_type || 'cash',
       amount: salary.amount,
       comment: salary.comment || '',
     })
@@ -140,6 +144,7 @@ export default function TeacherSalariesPage() {
   const resetForm = () => {
     setFormData({
       teacher: '',
+      payment_type: 'cash',
       amount: 0,
       comment: '',
     })
@@ -172,6 +177,7 @@ export default function TeacherSalariesPage() {
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
       { header: t('teacherSalaries.teacher'), accessor: (row) => getTeacherName(row.teacher) },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
       { header: t('teacherSalaries.amount'), accessor: (row) => row.amount },
       { header: t('teacherSalaries.comment'), accessor: (row) => row.comment || '' },
       { header: t('teacherSalaries.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
@@ -182,6 +188,7 @@ export default function TeacherSalariesPage() {
   const handleExportCSV = () => {
     const columns: ExportColumn[] = [
       { header: t('teacherSalaries.teacher'), accessor: (row) => getTeacherName(row.teacher) },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
       { header: t('teacherSalaries.amount'), accessor: (row) => row.amount },
       { header: t('teacherSalaries.comment'), accessor: (row) => row.comment || '' },
       { header: t('teacherSalaries.date') || 'Дата', accessor: (row) => formatDate(row.created_at) },
@@ -246,19 +253,22 @@ export default function TeacherSalariesPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Вчитель
+                  {t('teacherSalaries.teacher')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Сума
+                  {t('expenditures.paymentType')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Коментар
+                  {t('teacherSalaries.amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
+                  {t('teacherSalaries.comment')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
+                  {t('common.createdAt')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -268,8 +278,13 @@ export default function TeacherSalariesPage() {
                   <td className="px-6 py-4 whitespace-nowrap font-medium">
                     {getTeacherName(salary.teacher)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {salary.payment_type === 'cash' ? t('expenditures.paymentTypeCash') :
+                     salary.payment_type === 'till' ? t('expenditures.paymentTypeTill') :
+                     '-'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {salary.amount.toFixed(2)} грн
+                    {salary.amount.toFixed(2)} {t('common.uah')}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                     {salary.comment || '-'}
@@ -361,6 +376,19 @@ export default function TeacherSalariesPage() {
                   {teacher.first_name} {teacher.last_name}
                 </option>
               ))}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('expenditures.paymentType')} *
+            </label>
+            <Select
+              value={formData.payment_type}
+              onChange={(e) => setFormData({ ...formData, payment_type: e.target.value })}
+              required
+            >
+              <option value="cash">{t('expenditures.paymentTypeCash')}</option>
+              <option value="till">{t('expenditures.paymentTypeTill')}</option>
             </Select>
           </div>
           <div>

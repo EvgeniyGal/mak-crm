@@ -16,6 +16,7 @@ import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 interface Expenditure {
   id: string
   type: string
+  payment_type: string | null
   person: string | null
   amount: number
   comment: string | null
@@ -37,6 +38,7 @@ export default function ExpendituresPage() {
 
   const [formData, setFormData] = useState({
     type: 'regular',
+    payment_type: 'cash',
     person: '',
     amount: 0,
     comment: '',
@@ -67,6 +69,7 @@ export default function ExpendituresPage() {
     try {
       const submitData = {
         ...formData,
+        payment_type: formData.payment_type || null,
         person: formData.person || null,
         comment: formData.comment || null,
       }
@@ -97,6 +100,7 @@ export default function ExpendituresPage() {
     setEditingExpenditure(expenditure)
     setFormData({
       type: expenditure.type,
+      payment_type: expenditure.payment_type || 'cash',
       person: expenditure.person || '',
       amount: expenditure.amount,
       comment: expenditure.comment || '',
@@ -123,6 +127,7 @@ export default function ExpendituresPage() {
   const resetForm = () => {
     setFormData({
       type: 'regular',
+      payment_type: 'cash',
       person: '',
       amount: 0,
       comment: '',
@@ -152,6 +157,7 @@ export default function ExpendituresPage() {
     const columns: ExportColumn[] = [
       { header: t('expenditures.type'), accessor: (row) => row.type },
       { header: t('expenditures.person'), accessor: (row) => row.person || '' },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
       { header: t('expenditures.amount'), accessor: (row) => row.amount },
       { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
       { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
@@ -163,6 +169,7 @@ export default function ExpendituresPage() {
     const columns: ExportColumn[] = [
       { header: t('expenditures.type'), accessor: (row) => row.type },
       { header: t('expenditures.person'), accessor: (row) => row.person || '' },
+      { header: t('expenditures.paymentType'), accessor: (row) => row.payment_type === 'cash' ? t('expenditures.paymentTypeCash') : row.payment_type === 'till' ? t('expenditures.paymentTypeTill') : '' },
       { header: t('expenditures.amount'), accessor: (row) => row.amount },
       { header: t('expenditures.description'), accessor: (row) => row.comment || '' },
       { header: t('expenditures.date'), accessor: (row) => formatDate(row.created_at) },
@@ -231,6 +238,9 @@ export default function ExpendituresPage() {
                   {t('expenditures.person')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('expenditures.paymentType')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('expenditures.amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -261,6 +271,11 @@ export default function ExpendituresPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {expenditure.person || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {expenditure.payment_type === 'cash' ? t('expenditures.paymentTypeCash') :
+                     expenditure.payment_type === 'till' ? t('expenditures.paymentTypeTill') :
+                     '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     {expenditure.amount.toFixed(2)} {t('common.uah')}
@@ -362,6 +377,19 @@ export default function ExpendituresPage() {
               value={formData.person}
               onChange={(e) => setFormData({ ...formData, person: e.target.value })}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('expenditures.paymentType')} *
+            </label>
+            <Select
+              value={formData.payment_type}
+              onChange={(e) => setFormData({ ...formData, payment_type: e.target.value })}
+              required
+            >
+              <option value="cash">{t('expenditures.paymentTypeCash')}</option>
+              <option value="till">{t('expenditures.paymentTypeTill')}</option>
+            </Select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
