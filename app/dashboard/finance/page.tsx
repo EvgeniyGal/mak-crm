@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ExportButton } from '@/components/ui/export-button'
+import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 import { formatDate } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -26,6 +28,10 @@ export default function FinancePage() {
   const [financeData, setFinanceData] = useState<FinanceRow[]>([])
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
+  // Debounced values for actual data fetching
+  const [debouncedDateStart, setDebouncedDateStart] = useState('')
+  const [debouncedDateEnd, setDebouncedDateEnd] = useState('')
+  const isInitialMount = useRef(true)
 
   // Set default to current week (Monday to today)
   useEffect(() => {
@@ -86,14 +92,14 @@ export default function FinancePage() {
   }
 
   const fetchFinanceData = useCallback(async () => {
-    if (!dateRangeStart || !dateRangeEnd) return
+    if (!debouncedDateStart || !debouncedDateEnd) return
 
     try {
       setLoading(true)
       
-      const startDate = new Date(dateRangeStart)
+      const startDate = new Date(debouncedDateStart)
       startDate.setHours(0, 0, 0, 0)
-      const endDate = new Date(dateRangeEnd)
+      const endDate = new Date(debouncedDateEnd)
       endDate.setHours(23, 59, 59, 999)
 
       // Get all dates in range
@@ -308,18 +314,159 @@ export default function FinancePage() {
     } finally {
       setLoading(false)
     }
-  }, [dateRangeStart, dateRangeEnd, supabase])
+  }, [debouncedDateStart, debouncedDateEnd, supabase])
+
+  // Debounce date changes - wait 500ms after user stops changing dates
+  // On initial mount, set debounced values immediately (no delay)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      // Initial load - set immediately without debounce
+      if (dateRangeStart && dateRangeEnd) {
+        setDebouncedDateStart(dateRangeStart)
+        setDebouncedDateEnd(dateRangeEnd)
+        isInitialMount.current = false
+      }
+    } else {
+      // Subsequent changes - debounce for 500ms
+      const timer = setTimeout(() => {
+        setDebouncedDateStart(dateRangeStart)
+        setDebouncedDateEnd(dateRangeEnd)
+      }, 500)
+
+      return () => clearTimeout(timer)
+    }
+  }, [dateRangeStart, dateRangeEnd])
 
   useEffect(() => {
-    if (dateRangeStart && dateRangeEnd) {
+    if (debouncedDateStart && debouncedDateEnd) {
       fetchFinanceData()
     }
-  }, [dateRangeStart, dateRangeEnd, fetchFinanceData])
+  }, [debouncedDateStart, debouncedDateEnd, fetchFinanceData])
 
   const totalIncomesCash = financeData.reduce((sum, row) => sum + row.incomesCash, 0)
   const totalIncomesCard = financeData.reduce((sum, row) => sum + row.incomesCard, 0)
   const totalExpendituresCash = financeData.reduce((sum, row) => sum + row.expendituresCash, 0)
   const totalExpendituresCard = financeData.reduce((sum, row) => sum + row.expendituresCard, 0)
+
+  const handleExportXLS = () => {
+    const columns: ExportColumn<FinanceRow>[] = [
+      { 
+        header: t('finance.date'), 
+        accessor: (row) => formatDate(row.date) 
+      },
+      { 
+        header: t('finance.balanceAsOfStartDay'), 
+        accessor: (row) => `${row.balanceAsOfStartDay.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.incomesCash'), 
+        accessor: (row) => `${row.incomesCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.incomesCard'), 
+        accessor: (row) => `${row.incomesCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.expendituresCash'), 
+        accessor: (row) => `${row.expendituresCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.expendituresCard'), 
+        accessor: (row) => `${row.expendituresCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.balanceCash'), 
+        accessor: (row) => `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.balanceCard'), 
+        accessor: (row) => `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.totalBalance'), 
+        accessor: (row) => `${row.totalBalance.toFixed(2)} ${t('common.uah')}` 
+      },
+    ]
+
+    // Add totals row if there's data
+    const exportData = [...financeData]
+    if (financeData.length > 0) {
+      const lastRow = financeData[financeData.length - 1]
+      exportData.push({
+        date: t('finance.total'),
+        balanceAsOfStartDay: 0,
+        incomesCash: totalIncomesCash,
+        incomesCard: totalIncomesCard,
+        expendituresCash: totalExpendituresCash,
+        expendituresCard: totalExpendituresCard,
+        balanceCash: lastRow.balanceCash,
+        balanceCard: lastRow.balanceCard,
+        totalBalance: lastRow.totalBalance,
+      } as FinanceRow)
+    }
+
+    exportToXLS(exportData, columns, 'finance')
+  }
+
+  const handleExportCSV = () => {
+    const columns: ExportColumn<FinanceRow>[] = [
+      { 
+        header: t('finance.date'), 
+        accessor: (row) => formatDate(row.date) 
+      },
+      { 
+        header: t('finance.balanceAsOfStartDay'), 
+        accessor: (row) => `${row.balanceAsOfStartDay.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.incomesCash'), 
+        accessor: (row) => `${row.incomesCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.incomesCard'), 
+        accessor: (row) => `${row.incomesCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.expendituresCash'), 
+        accessor: (row) => `${row.expendituresCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.expendituresCard'), 
+        accessor: (row) => `${row.expendituresCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.balanceCash'), 
+        accessor: (row) => `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.balanceCard'), 
+        accessor: (row) => `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.totalBalance'), 
+        accessor: (row) => `${row.totalBalance.toFixed(2)} ${t('common.uah')}` 
+      },
+    ]
+
+    // Add totals row if there's data
+    const exportData = [...financeData]
+    if (financeData.length > 0) {
+      const lastRow = financeData[financeData.length - 1]
+      exportData.push({
+        date: t('finance.total'),
+        balanceAsOfStartDay: 0,
+        incomesCash: totalIncomesCash,
+        incomesCard: totalIncomesCard,
+        expendituresCash: totalExpendituresCash,
+        expendituresCard: totalExpendituresCard,
+        balanceCash: lastRow.balanceCash,
+        balanceCard: lastRow.balanceCard,
+        totalBalance: lastRow.totalBalance,
+      } as FinanceRow)
+    }
+
+    exportToCSV(exportData, columns, 'finance')
+  }
 
   if (loading) {
     return <div className="p-8">{t('common.loading')}</div>
@@ -329,6 +476,11 @@ export default function FinancePage() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('dashboard.finance')}</h1>
+        <ExportButton 
+          onExportXLS={handleExportXLS}
+          onExportCSV={handleExportCSV}
+          disabled={financeData.length === 0}
+        />
       </div>
 
       {/* Date Range and Quick Buttons */}
