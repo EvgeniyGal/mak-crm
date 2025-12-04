@@ -411,12 +411,12 @@
     "title": "Відсутні студенти",
     "selectClass": "Вибрати клас",
     "student": "Студент",
-    "parent": "Батько",
+    "parent": "Батьки",
     "phone": "Телефон",
     "enrolledClasses": "Зареєстровані класи",
     "lastAttendance": "Остання відвідуваність",
     "noAbsentStudents": "Немає відсутніх студентів",
-    "searchPlaceholder": "Пошук за ім'ям, батьком, телефоном або email..."
+    "searchPlaceholder": "Пошук за ім'ям, батьками, телефоном або email..."
   },
   "adminTasks": {
     "title": "Завдання",

@@ -667,7 +667,7 @@ export default function StudentsPage() {
                   {getSortIcon('age')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Батько
+                  Батьки
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Телефон
@@ -1706,7 +1706,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
                       <th className="px-2 py-1 text-left">Ім&apos;я</th>
                       <th className="px-2 py-1 text-left">Прізвище</th>
                       <th className="px-2 py-1 text-left">Дата народження</th>
-                      <th className="px-2 py-1 text-left">Батько</th>
+                      <th className="px-2 py-1 text-left">Батьки</th>
                       <th className="px-2 py-1 text-left">Телефон</th>
                     </tr>
                   </thead>
