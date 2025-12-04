@@ -118,31 +118,41 @@ export default function FinancePage() {
         currentDate.setDate(currentDate.getDate() + 1)
       }
 
-      // Fetch payments (incomes)
+      // Get today's date to ensure we fetch today's transactions for balance calculation
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const todayEnd = new Date(today)
+      todayEnd.setHours(23, 59, 59, 999)
+      
+      // Determine the actual end date for fetching (use the later of endDate or today)
+      const fetchEndDate = endDate > todayEnd ? endDate : todayEnd
+
+      // Fetch payments (incomes) - include today's transactions for balance calculation
       const { data: payments, error: paymentsError } = await supabase
         .from('payments')
         .select('type, package_types(amount), created_at, updated_at, status')
         .eq('status', 'paid')
         .gte('updated_at', startDate.toISOString())
-        .lte('updated_at', endDate.toISOString())
+        .lte('updated_at', fetchEndDate.toISOString())
 
       if (paymentsError) throw paymentsError
 
-      // Fetch expenditures
+      // Fetch expenditures - include today's transactions for balance calculation
       const { data: expenditures, error: expendituresError } = await supabase
         .from('expenditures')
         .select('amount, payment_type, created_at')
         .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
+        .lte('created_at', fetchEndDate.toISOString())
 
       if (expendituresError) throw expendituresError
 
-      // Fetch teacher salaries
+      // Fetch teacher salaries - include today's transactions for balance calculation
       const { data: salaries, error: salariesError } = await supabase
         .from('teacher_salaries')
         .select('amount, payment_type, created_at')
         .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
+        .lte('created_at', fetchEndDate.toISOString())
 
       if (salariesError) throw salariesError
 
@@ -215,7 +225,170 @@ export default function FinancePage() {
         })
       }
 
-      // Calculate data for each date
+      // Calculate balance at start of current day (balance up to but not including today)
+      // We need to go through all dates from startDate to today, not just the selected range
+      let balanceAtStartOfCurrentDay = initialBalanceCash + initialBalanceCard
+      let runningBalanceCashForStart = initialBalanceCash
+      let runningBalanceCardForStart = initialBalanceCard
+
+      // Generate all dates from startDate to today (for balance calculation)
+      const allDatesToToday: string[] = []
+      const calcDate = new Date(startDate)
+      while (calcDate < today) {
+        const year = calcDate.getFullYear()
+        const month = String(calcDate.getMonth() + 1).padStart(2, '0')
+        const day = String(calcDate.getDate()).padStart(2, '0')
+        const dateStr = `${year}-${month}-${day}`
+        allDatesToToday.push(dateStr)
+        calcDate.setDate(calcDate.getDate() + 1)
+      }
+
+      // Calculate balance up to (but not including) today
+      for (const dateStr of allDatesToToday) {
+        const date = new Date(dateStr)
+        date.setHours(0, 0, 0, 0)
+
+        // Filter transactions for this date
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dayPayments = payments?.filter((p: any) => {
+          const paymentDate = new Date(p.updated_at || p.created_at)
+          return paymentDate.getFullYear() === date.getFullYear() &&
+                 paymentDate.getMonth() === date.getMonth() &&
+                 paymentDate.getDate() === date.getDate()
+        }) || []
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dayExpenditures = expenditures?.filter((e: any) => {
+          const expDate = new Date(e.created_at)
+          return expDate.getFullYear() === date.getFullYear() &&
+                 expDate.getMonth() === date.getMonth() &&
+                 expDate.getDate() === date.getDate()
+        }) || []
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const daySalaries = salaries?.filter((s: any) => {
+          const salDate = new Date(s.created_at)
+          return salDate.getFullYear() === date.getFullYear() &&
+                 salDate.getMonth() === date.getMonth() &&
+                 salDate.getDate() === date.getDate()
+        }) || []
+
+        // Calculate incomes for this date
+        let incomesCash = 0
+        let incomesCard = 0
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dayPayments.forEach((payment: any) => {
+          const amount = payment.package_types?.amount || 0
+          if (payment.type === 'cash') {
+            incomesCash += amount
+          } else if (payment.type === 'card') {
+            incomesCard += amount
+          }
+        })
+
+        // Calculate expenditures for this date
+        let expendituresCash = 0
+        let expendituresCard = 0
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dayExpenditures.forEach((expenditure: any) => {
+          if (expenditure.payment_type === 'cash') {
+            expendituresCash += expenditure.amount
+          } else if (expenditure.payment_type === 'card') {
+            expendituresCard += expenditure.amount
+          }
+        })
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        daySalaries.forEach((salary: any) => {
+          if (salary.payment_type === 'cash') {
+            expendituresCash += salary.amount
+          } else if (salary.payment_type === 'card') {
+            expendituresCard += salary.amount
+          }
+        })
+
+        // Update balance
+        runningBalanceCashForStart += incomesCash - expendituresCash
+        runningBalanceCardForStart += incomesCard - expendituresCard
+      }
+
+      // Calculate balance at start of current day
+      balanceAtStartOfCurrentDay = runningBalanceCashForStart + runningBalanceCardForStart
+
+      // Calculate current day's transactions only
+      const currentDayDate = new Date(todayStr)
+      currentDayDate.setHours(0, 0, 0, 0)
+
+      // Filter transactions for current day only
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentDayPayments = payments?.filter((p: any) => {
+        const paymentDate = new Date(p.updated_at || p.created_at)
+        return paymentDate.getFullYear() === currentDayDate.getFullYear() &&
+               paymentDate.getMonth() === currentDayDate.getMonth() &&
+               paymentDate.getDate() === currentDayDate.getDate()
+      }) || []
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentDayExpenditures = expenditures?.filter((e: any) => {
+        const expDate = new Date(e.created_at)
+        return expDate.getFullYear() === currentDayDate.getFullYear() &&
+               expDate.getMonth() === currentDayDate.getMonth() &&
+               expDate.getDate() === currentDayDate.getDate()
+      }) || []
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentDaySalaries = salaries?.filter((s: any) => {
+        const salDate = new Date(s.created_at)
+        return salDate.getFullYear() === currentDayDate.getFullYear() &&
+               salDate.getMonth() === currentDayDate.getMonth() &&
+               salDate.getDate() === currentDayDate.getDate()
+      }) || []
+
+      // Calculate current day's incomes
+      let currentDayIncomesCash = 0
+      let currentDayIncomesCard = 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      currentDayPayments.forEach((payment: any) => {
+        const amount = payment.package_types?.amount || 0
+        if (payment.type === 'cash') {
+          currentDayIncomesCash += amount
+        } else if (payment.type === 'card') {
+          currentDayIncomesCard += amount
+        }
+      })
+
+      // Calculate current day's expenditures
+      let currentDayExpendituresCash = 0
+      let currentDayExpendituresCard = 0
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      currentDayExpenditures.forEach((expenditure: any) => {
+        if (expenditure.payment_type === 'cash') {
+          currentDayExpendituresCash += expenditure.amount
+        } else if (expenditure.payment_type === 'card') {
+          currentDayExpendituresCard += expenditure.amount
+        }
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      currentDaySalaries.forEach((salary: any) => {
+        if (salary.payment_type === 'cash') {
+          currentDayExpendituresCash += salary.amount
+        } else if (salary.payment_type === 'card') {
+          currentDayExpendituresCard += salary.amount
+        }
+      })
+
+      // Calculate balance columns for current day only:
+      // БАЛАНС (ГОТІВКА) = ДОХОДИ (ГОТІВКА) - ВИТРАТИ (ГОТІВКА) for current day
+      const currentDayBalanceCash = currentDayIncomesCash - currentDayExpendituresCash
+      // БАЛАНС (КАРТКА) = ДОХОДИ (КАРТКА) - ВИТРАТИ (КАРТКА) for current day
+      const currentDayBalanceCard = currentDayIncomesCard - currentDayExpendituresCard
+      // ЗАГАЛЬНИЙ БАЛАНС = БАЛАНС НА ПОЧАТОК ДНЯ + БАЛАНС (ГОТІВКА) + БАЛАНС (КАРТКА) for current day
+      const currentDayTotalBalance = balanceAtStartOfCurrentDay + currentDayBalanceCash + currentDayBalanceCard
+
+      // Now calculate data for each date in the range (for display)
       const rows: FinanceRow[] = []
       let runningBalanceCash = initialBalanceCash
       let runningBalanceCard = initialBalanceCard
@@ -295,6 +468,14 @@ export default function FinancePage() {
         runningBalanceCash += incomesCash - expendituresCash
         runningBalanceCard += incomesCard - expendituresCard
 
+        // For balance columns, calculate based on THIS DAY's data (not current day)
+        // БАЛАНС (ГОТІВКА) = ДОХОДИ (ГОТІВКА) - ВИТРАТИ (ГОТІВКА) for this day
+        const balanceCash = incomesCash - expendituresCash
+        // БАЛАНС (КАРТКА) = ДОХОДИ (КАРТКА) - ВИТРАТИ (КАРТКА) for this day
+        const balanceCard = incomesCard - expendituresCard
+        // ЗАГАЛЬНИЙ БАЛАНС = БАЛАНС НА ПОЧАТОК ДНЯ + БАЛАНС (ГОТІВКА) + БАЛАНС (КАРТКА) for this day
+        const totalBalance = balanceAsOfStartDay + balanceCash + balanceCard
+
         rows.push({
           date: dateStr,
           balanceAsOfStartDay: balanceAsOfStartDay,
@@ -302,9 +483,9 @@ export default function FinancePage() {
           incomesCard,
           expendituresCash,
           expendituresCard,
-          balanceCash: runningBalanceCash,
-          balanceCard: runningBalanceCard,
-          totalBalance: runningBalanceCash + runningBalanceCard,
+          balanceCash,
+          balanceCard,
+          totalBalance,
         })
       }
 
@@ -376,11 +557,11 @@ export default function FinancePage() {
       },
       { 
         header: t('finance.balanceCash'), 
-        accessor: (row) => `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
       },
       { 
         header: t('finance.balanceCard'), 
-        accessor: (row) => `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
       },
       { 
         header: t('finance.totalBalance'), 
@@ -436,11 +617,11 @@ export default function FinancePage() {
       },
       { 
         header: t('finance.balanceCash'), 
-        accessor: (row) => `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
       },
       { 
         header: t('finance.balanceCard'), 
-        accessor: (row) => `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
       },
       { 
         header: t('finance.totalBalance'), 
@@ -517,11 +698,11 @@ export default function FinancePage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-300px)]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
+            <thead className="bg-gray-100 sticky top-0 z-30">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
                   {t('finance.date')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -553,7 +734,7 @@ export default function FinancePage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {financeData.map((row, index) => (
                 <tr key={index}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 sticky left-0 bg-white z-10">
                     {formatDate(row.date)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -584,7 +765,7 @@ export default function FinancePage() {
               ))}
               {financeData.length > 0 && (
                 <tr className="bg-gray-50 font-semibold">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm sticky left-0 bg-gray-50 z-10">
                     {t('finance.total')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -603,10 +784,10 @@ export default function FinancePage() {
                     {totalExpendituresCard.toFixed(2)} {t('common.uah')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {financeData[financeData.length - 1]?.balanceCash.toFixed(2) || '0.00'} {t('common.uah')}
+                    -
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {financeData[financeData.length - 1]?.balanceCard.toFixed(2) || '0.00'} {t('common.uah')}
+                    -
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {financeData[financeData.length - 1]?.totalBalance.toFixed(2) || '0.00'} {t('common.uah')}
