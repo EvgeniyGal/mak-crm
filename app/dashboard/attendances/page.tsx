@@ -56,6 +56,7 @@ export default function AttendancesPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [stats, setStats] = useState<AttendanceStats>({})
+  const [attendanceStudents, setAttendanceStudents] = useState<Record<string, Array<{ name: string; status: string }>>>({})
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAttendance, setEditingAttendance] = useState<Attendance | null>(null)
@@ -129,10 +130,12 @@ export default function AttendancesPage() {
 
   const fetchAllStats = useCallback(async () => {
     const newStats: AttendanceStats = {}
+    const newAttendanceStudents: Record<string, Array<{ name: string; status: string }>> = {}
+    
     for (const attendance of attendances) {
       const { data } = await supabase
         .from('student_presences')
-        .select('status')
+        .select('student_id, status')
         .eq('attendance_id', attendance.id)
 
       if (data) {
@@ -141,10 +144,24 @@ export default function AttendancesPage() {
           absent: data.filter(p => p.status === 'absent').length,
           validReason: data.filter(p => p.status === 'absent with valid reason').length,
         }
+        
+        // Get student names for this attendance
+        const studentList: Array<{ name: string; status: string }> = []
+        data.forEach((presence) => {
+          const student = students.find(s => s.id === presence.student_id)
+          if (student) {
+            studentList.push({
+              name: `${student.student_first_name} ${student.student_last_name}`,
+              status: presence.status
+            })
+          }
+        })
+        newAttendanceStudents[attendance.id] = studentList
       }
     }
     setStats(newStats)
-  }, [supabase, attendances])
+    setAttendanceStudents(newAttendanceStudents)
+  }, [supabase, attendances, students])
 
   useEffect(() => {
     fetchAttendances()
@@ -572,10 +589,20 @@ export default function AttendancesPage() {
   }
 
   const filteredAttendances = attendances.filter((attendance) => {
-    const matchesSearch =
+    // Check if search term matches date or class name
+    const matchesDateOrClass =
       searchTerm === '' ||
       formatDate(attendance.date).includes(searchTerm) ||
       classes.find(c => c.id === attendance.class_id)?.name.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    // Check if search term matches any student name in this attendance
+    const studentsList = attendanceStudents[attendance.id] || []
+    const matchesStudent = searchTerm === '' || 
+      studentsList.some(student => 
+        student.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    
+    const matchesSearch = matchesDateOrClass || matchesStudent
 
     const matchesClass = classFilter === 'all' || attendance.class_id === classFilter
 
@@ -601,6 +628,13 @@ export default function AttendancesPage() {
     const columns: ExportColumn[] = [
       { header: t('attendances.class'), accessor: (row) => getClassName(row.class_id) },
       { header: t('attendances.date'), accessor: (row) => formatDate(row.date) },
+      { 
+        header: 'Студенти', 
+        accessor: (row) => {
+          const studentsList = attendanceStudents[row.id] || []
+          return studentsList.map(s => `${s.name} (${s.status === 'present' ? 'Присутній' : s.status === 'absent' ? 'Відсутній' : 'Поважна причина'})`).join('; ')
+        }
+      },
       { header: t('classAttendances.totalPresent'), accessor: (row) => stats[row.id]?.present || 0 },
       { header: t('classAttendances.totalAbsent'), accessor: (row) => stats[row.id]?.absent || 0 },
       { header: t('classAttendances.totalValidReason'), accessor: (row) => stats[row.id]?.validReason || 0 },
@@ -613,6 +647,13 @@ export default function AttendancesPage() {
     const columns: ExportColumn[] = [
       { header: t('attendances.class'), accessor: (row) => getClassName(row.class_id) },
       { header: t('attendances.date'), accessor: (row) => formatDate(row.date) },
+      { 
+        header: 'Студенти', 
+        accessor: (row) => {
+          const studentsList = attendanceStudents[row.id] || []
+          return studentsList.map(s => `${s.name} (${s.status === 'present' ? 'Присутній' : s.status === 'absent' ? 'Відсутній' : 'Поважна причина'})`).join('; ')
+        }
+      },
       { header: t('classAttendances.totalPresent'), accessor: (row) => stats[row.id]?.present || 0 },
       { header: t('classAttendances.totalAbsent'), accessor: (row) => stats[row.id]?.absent || 0 },
       { header: t('classAttendances.totalValidReason'), accessor: (row) => stats[row.id]?.validReason || 0 },
@@ -689,15 +730,18 @@ export default function AttendancesPage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-300px)]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
+            <thead className="bg-gray-100 sticky top-0 z-30">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
                   Дата
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Клас
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Студенти
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Статистика
@@ -714,13 +758,32 @@ export default function AttendancesPage() {
               {paginatedAttendances.map((attendance) => {
                 const className = classes.find(c => c.id === attendance.class_id)?.name || '-'
                 const attendanceStats = stats[attendance.id] || { present: 0, absent: 0, validReason: 0 }
+                const studentsList = attendanceStudents[attendance.id] || []
                 return (
                   <tr key={attendance.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
                       {formatDate(attendance.date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">
                       {className}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex flex-col gap-1 max-w-xs">
+                        {studentsList.length > 0 ? (
+                          studentsList.map((student, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className={`inline-block w-2 h-2 rounded-full ${
+                                student.status === 'present' ? 'bg-green-500' :
+                                student.status === 'absent' ? 'bg-red-500' :
+                                'bg-yellow-500'
+                              }`}></span>
+                              <span className="truncate">{student.name}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex gap-2 flex-wrap">

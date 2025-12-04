@@ -63,6 +63,10 @@ export default function StudentAbsenteesPage() {
     return new Date().toISOString().split('T')[0]
   })
   const [classFilter, setClassFilter] = useState<string>('all')
+  const [minAgeYears, setMinAgeYears] = useState('')
+  const [minAgeMonths, setMinAgeMonths] = useState('')
+  const [maxAgeYears, setMaxAgeYears] = useState('')
+  const [maxAgeMonths, setMaxAgeMonths] = useState('')
   const [sortBy, setSortBy] = useState<string>('student_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
@@ -248,7 +252,38 @@ export default function StudentAbsenteesPage() {
       student.phone.includes(searchTerm) ||
       (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()))
 
-    return matchesSearch
+    // Age filter - convert years and months to total months for comparison
+    const dob = new Date(student.student_date_of_birth)
+    const now = new Date()
+    let years = now.getFullYear() - dob.getFullYear()
+    let months = now.getMonth() - dob.getMonth()
+    if (months < 0) {
+      years--
+      months += 12
+    }
+    if (now.getDate() < dob.getDate()) {
+      months--
+      if (months < 0) {
+        years--
+        months += 12
+      }
+    }
+    const totalMonths = years * 12 + months
+    
+    const hasMinAge = minAgeYears !== '' || minAgeMonths !== ''
+    const hasMaxAge = maxAgeYears !== '' || maxAgeMonths !== ''
+    
+    let matchesAgeRange = true
+    if (hasMinAge) {
+      const minTotalMonths = (minAgeYears ? parseInt(minAgeYears) || 0 : 0) * 12 + (minAgeMonths ? parseInt(minAgeMonths) || 0 : 0)
+      matchesAgeRange = matchesAgeRange && totalMonths >= minTotalMonths
+    }
+    if (hasMaxAge) {
+      const maxTotalMonths = (maxAgeYears ? parseInt(maxAgeYears) || 0 : 0) * 12 + (maxAgeMonths ? parseInt(maxAgeMonths) || 0 : 0)
+      matchesAgeRange = matchesAgeRange && totalMonths <= maxTotalMonths
+    }
+
+    return matchesSearch && matchesAgeRange
   })
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -373,6 +408,56 @@ export default function StudentAbsenteesPage() {
             />
           </div>
         </div>
+        <div className="flex gap-4 flex-wrap">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Вік від
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder={t('common.yearsShort')}
+                value={minAgeYears}
+                onChange={(e) => setMinAgeYears(e.target.value)}
+                className="w-20"
+                min="0"
+              />
+              <Input
+                type="number"
+                placeholder={t('common.monthsShort')}
+                value={minAgeMonths}
+                onChange={(e) => setMinAgeMonths(e.target.value)}
+                className="w-20"
+                min="0"
+                max="11"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Вік до
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder={t('common.yearsShort')}
+                value={maxAgeYears}
+                onChange={(e) => setMaxAgeYears(e.target.value)}
+                className="w-20"
+                min="0"
+              />
+              <Input
+                type="number"
+                placeholder={t('common.monthsShort')}
+                value={maxAgeMonths}
+                onChange={(e) => setMaxAgeMonths(e.target.value)}
+                className="w-20"
+                min="0"
+                max="11"
+              />
+            </div>
+          </div>
+        </div>
         <div className="flex gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -400,12 +485,12 @@ export default function StudentAbsenteesPage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-300px)]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
+            <thead className="bg-gray-100 sticky top-0 z-30">
               <tr>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   onClick={() => {
                     if (sortBy === 'student_name') {
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -501,7 +586,7 @@ export default function StudentAbsenteesPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedStudents.map((student) => (
                 <tr key={student.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap font-medium sticky left-0 bg-white z-10">
                     {student.student_first_name} {student.student_last_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

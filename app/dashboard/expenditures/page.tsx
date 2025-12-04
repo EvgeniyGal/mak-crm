@@ -289,6 +289,12 @@ export default function ExpendituresPage() {
             <option value="all">{t('expenditures.allExpenditureTypes')}</option>
             <option value="regular">{t('expenditures.typeRegular')}</option>
             <option value="staff">{t('expenditures.typeStaff')}</option>
+            <option value="utilities">{t('expenditures.typeUtilities')}</option>
+            <option value="rent">{t('expenditures.typeRent')}</option>
+            <option value="office">{t('expenditures.typeOffice')}</option>
+            <option value="repair">{t('expenditures.typeRepair')}</option>
+            <option value="classes">{t('expenditures.typeClasses')}</option>
+            <option value="other">{t('expenditures.typeOther')}</option>
           </Select>
           <Select
             value={paymentTypeFilter}
@@ -324,12 +330,12 @@ export default function ExpendituresPage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-300px)]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
+            <thead className="bg-gray-100 sticky top-0 z-30">
               <tr>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   onClick={() => handleSort('type')}
                 >
                   {t('expenditures.expenditureType')}
@@ -374,14 +380,26 @@ export default function ExpendituresPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedExpenditures.map((expenditure) => (
                 <tr key={expenditure.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       expenditure.type === 'regular' ? 'bg-blue-100 text-blue-800' :
                       expenditure.type === 'staff' ? 'bg-purple-100 text-purple-800' :
+                      expenditure.type === 'utilities' ? 'bg-cyan-100 text-cyan-800' :
+                      expenditure.type === 'rent' ? 'bg-orange-100 text-orange-800' :
+                      expenditure.type === 'office' ? 'bg-indigo-100 text-indigo-800' :
+                      expenditure.type === 'repair' ? 'bg-red-100 text-red-800' :
+                      expenditure.type === 'classes' ? 'bg-pink-100 text-pink-800' :
+                      expenditure.type === 'other' ? 'bg-gray-100 text-gray-800' :
                       'bg-green-100 text-green-800'
                     }`}>
                       {expenditure.type === 'regular' ? t('expenditures.typeRegular') :
                        expenditure.type === 'staff' ? t('expenditures.typeStaff') :
+                       expenditure.type === 'utilities' ? t('expenditures.typeUtilities') :
+                       expenditure.type === 'rent' ? t('expenditures.typeRent') :
+                       expenditure.type === 'office' ? t('expenditures.typeOffice') :
+                       expenditure.type === 'repair' ? t('expenditures.typeRepair') :
+                       expenditure.type === 'classes' ? t('expenditures.typeClasses') :
+                       expenditure.type === 'other' ? t('expenditures.typeOther') :
                        expenditure.type === 'till' ? t('expenditures.typeTill') :
                        expenditure.type}
                     </span>
@@ -483,6 +501,12 @@ export default function ExpendituresPage() {
             >
               <option value="regular">{t('expenditures.typeRegular')}</option>
               <option value="staff">{t('expenditures.typeStaff')}</option>
+              <option value="utilities">{t('expenditures.typeUtilities')}</option>
+              <option value="rent">{t('expenditures.typeRent')}</option>
+              <option value="office">{t('expenditures.typeOffice')}</option>
+              <option value="repair">{t('expenditures.typeRepair')}</option>
+              <option value="classes">{t('expenditures.typeClasses')}</option>
+              <option value="other">{t('expenditures.typeOther')}</option>
             </Select>
           </div>
           <div>

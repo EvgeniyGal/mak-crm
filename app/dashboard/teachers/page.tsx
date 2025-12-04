@@ -344,12 +344,12 @@ export default function TeachersPage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-300px)]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
+            <thead className="bg-gray-100 sticky top-0 z-30">
               <tr>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   onClick={() => handleSort('name')}
                 >
                   {t('teachers.teacher')}
@@ -397,7 +397,7 @@ export default function TeachersPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedTeachers.map((teacher) => (
                 <tr key={teacher.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
                     {teacher.first_name} {teacher.last_name} {teacher.middle_name || ''}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
