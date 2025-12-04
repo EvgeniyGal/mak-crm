@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatAge, formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Search, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, FileText, ArrowUpDown, ArrowUp, ArrowDown, Upload } from 'lucide-react'
+import { decode as decodeWindows1251 } from 'windows-1251'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
@@ -17,7 +18,7 @@ interface Student {
   id: string
   student_first_name: string
   student_last_name: string
-  student_date_of_birth: string
+  student_date_of_birth: string | null
   parent_first_name: string
   parent_middle_name: string | null
   phone: string
@@ -47,6 +48,7 @@ export default function StudentsPage() {
   const [classCapacities, setClassCapacities] = useState<Record<string, { available: number; total: number; isFull: boolean }>>({})
   const [, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false)
   const [selectedStudentForSummary, setSelectedStudentForSummary] = useState<Student | null>(null)
   const [studentSummary, setStudentSummary] = useState<{
@@ -540,6 +542,12 @@ export default function StudentsPage() {
               onExportCSV={handleExportCSV}
               disabled={sortedStudents.length === 0}
             />
+          )}
+          {isOwner && (
+            <Button onClick={() => setIsImportModalOpen(true)} variant="outline">
+              <Upload className="h-4 w-4 mr-2" />
+              Імпорт
+            </Button>
           )}
           <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
             <Plus className="h-4 w-4 mr-2" />
@@ -1129,6 +1137,600 @@ export default function StudentsPage() {
           <div className="text-center py-8 text-gray-500">{t('common.noData')}</div>
         )}
       </Modal>
+
+      {/* Import Modal */}
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Імпорт студентів з CSV"
+        size="xl"
+      >
+        <ImportStudentsModal
+          onImport={async (studentsToImport) => {
+            try {
+              // Import students in batches
+              const batchSize = 10
+              const importedStudentIds: string[] = []
+              
+              for (let i = 0; i < studentsToImport.length; i += batchSize) {
+                const batch = studentsToImport.slice(i, i + batchSize)
+                const { data: insertedStudents, error } = await supabase
+                  .from('students')
+                  .insert(batch)
+                  .select('id, enrolled_class_ids')
+                
+                if (error) throw error
+                
+                if (insertedStudents) {
+                  // Update classes with new student IDs
+                  for (const student of insertedStudents) {
+                    importedStudentIds.push(student.id)
+                    for (const classId of student.enrolled_class_ids || []) {
+                      const cls = classes.find(c => c.id === classId)
+                      if (cls) {
+                        const updatedStudentIds = [...(cls.student_ids || []), student.id].filter(Boolean)
+                        await supabase
+                          .from('courses')
+                          .update({ student_ids: updatedStudentIds })
+                          .eq('id', classId)
+                      }
+                    }
+                  }
+                }
+              }
+              
+              await fetchStudents()
+              await fetchCourses()
+              setIsImportModalOpen(false)
+              alert(`Успішно імпортовано ${studentsToImport.length} студентів`)
+            } catch (error) {
+              console.error('Error importing students:', error)
+              alert('Помилка імпорту студентів')
+            }
+          }}
+          onClose={() => setIsImportModalOpen(false)}
+          classes={classes}
+        />
+      </Modal>
+    </div>
+  )
+}
+
+// Import Students Modal Component
+interface ImportStudentsModalProps {
+  onImport: (students: Array<{
+    student_first_name: string
+    student_last_name: string
+    student_date_of_birth: string | null
+    parent_first_name: string
+    parent_middle_name: string | null
+    phone: string
+    email: string | null
+    status: string
+    comment: string | null
+    enrolled_class_ids: string[]
+    interested_class_ids: string[]
+  }>) => Promise<void>
+  onClose: () => void
+  classes: Class[]
+}
+
+function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModalProps) {
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<string[][]>([])
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({})
+  const [previewData, setPreviewData] = useState<Array<Record<string, any>>>([])
+  const [importing, setImporting] = useState(false)
+
+  // Available database fields
+  const dbFields = [
+    { value: 'student_first_name', label: "Ім'я студента" },
+    { value: 'student_last_name', label: 'Прізвище студента' },
+    { value: 'student_date_of_birth', label: 'Дата народження' },
+    { value: 'parent_first_name', label: "Ім'я батька" },
+    { value: 'parent_middle_name', label: 'По батькові' },
+    { value: 'phone', label: 'Телефон' },
+    { value: 'email', label: 'Email' },
+    { value: 'status', label: 'Статус' },
+    { value: 'comment', label: 'Коментар' },
+    { value: 'enrolled_classes', label: 'Курси (назви)' },
+    { value: 'interested_classes', label: 'Желаемые курсы (назви)' },
+    { value: 'skip', label: 'Пропустити' },
+  ]
+
+  // Auto-detect common column names
+  const autoDetectMapping = (headers: string[]) => {
+    const mapping: Record<string, string> = {}
+    const headerLower = headers.map(h => h.toLowerCase().trim())
+    
+    headers.forEach((header, index) => {
+      const h = headerLower[index]
+      if (h.includes('имя ребенка') || h.includes('имя студента') || h.includes('ребенок')) {
+        mapping[header] = 'student_first_name'
+      } else if (h.includes('фамилия') || h.includes('прізвище')) {
+        mapping[header] = 'student_last_name'
+      } else if (h.includes('имя родителя') || h.includes('имя батька') || h.includes('родитель')) {
+        mapping[header] = 'parent_first_name'
+      } else if (h.includes('телефон') || h.includes('phone')) {
+        mapping[header] = 'phone'
+      } else if (h.includes('email') || h.includes('почта')) {
+        mapping[header] = 'email'
+      } else if (h.includes('дата рождения') || h.includes('дата народження') || h.includes('дата рождения')) {
+        mapping[header] = 'student_date_of_birth'
+      } else if (h.includes('курсы') || h.includes('курси') || h.includes('занятия')) {
+        mapping[header] = 'enrolled_classes'
+      } else if (h.includes('желаемые') || h.includes('желаемые курсы')) {
+        mapping[header] = 'interested_classes'
+      } else if (h.includes('комментарий') || h.includes('коментар')) {
+        mapping[header] = 'comment'
+      }
+    })
+    
+    return mapping
+  }
+
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setCsvFile(file)
+    const reader = new FileReader()
+    
+    // Try to read as Windows-1251 first, fallback to UTF-8
+    reader.onload = async (event) => {
+      try {
+        // Read as ArrayBuffer to handle encoding
+        const arrayBuffer = event.target?.result as ArrayBuffer
+        if (!arrayBuffer) return
+
+        // Try Windows-1251 decoding first
+        let text: string
+        try {
+          const bytes = new Uint8Array(arrayBuffer)
+          text = decodeWindows1251(bytes)
+        } catch (error) {
+          // Fallback to UTF-8
+          const decoder = new TextDecoder('utf-8')
+          text = decoder.decode(arrayBuffer)
+        }
+        
+        // Parse CSV with semicolon delimiter
+        const lines = text.split('\n').filter(line => line.trim())
+        const parsed: string[][] = []
+        
+        lines.forEach(line => {
+          // Handle CSV with semicolon delimiter
+          const values: string[] = []
+          let current = ''
+          let inQuotes = false
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i]
+            if (char === '"') {
+              inQuotes = !inQuotes
+            } else if (char === ';' && !inQuotes) {
+              values.push(current.trim())
+              current = ''
+            } else {
+              current += char
+            }
+          }
+          values.push(current.trim())
+          parsed.push(values)
+        })
+
+        if (parsed.length > 0) {
+          setCsvHeaders(parsed[0])
+          setCsvData(parsed.slice(1))
+          const autoMapping = autoDetectMapping(parsed[0])
+          setFieldMapping(autoMapping)
+          generatePreview(parsed[0], parsed.slice(1), autoMapping)
+        }
+      } catch (error) {
+        console.error('Error reading file:', error)
+        alert('Помилка читання файлу. Перевірте кодування файлу.')
+      }
+    }
+    
+    reader.readAsArrayBuffer(file)
+  }
+
+  const generatePreview = (headers: string[], data: string[][], mapping: Record<string, string>) => {
+    const preview: Array<Record<string, any>> = []
+    const maxPreview = Math.min(5, data.length)
+
+    for (let i = 0; i < maxPreview; i++) {
+      const row: Record<string, any> = {}
+      headers.forEach((header, index) => {
+        const dbField = mapping[header]
+        if (dbField && dbField !== 'skip' && data[i] && data[i][index] !== undefined) {
+          let value = data[i][index]?.trim() || ''
+          
+          // Convert date formats
+          if (dbField === 'student_date_of_birth') {
+            value = value ? convertDate(value) : '2099-01-01'
+          }
+          
+          // Parse classes (comma or bracket separated)
+          if (dbField === 'enrolled_classes' || dbField === 'interested_classes') {
+            value = parseClasses(value)
+          }
+          
+          row[dbField] = value
+        }
+      })
+      
+      // Set defaults
+      if (!row.student_first_name) row.student_first_name = ''
+      if (!row.student_last_name) row.student_last_name = ''
+      if (!row.student_date_of_birth) row.student_date_of_birth = null
+      if (!row.parent_first_name) row.parent_first_name = ''
+      if (!row.status) row.status = 'active'
+      if (!row.enrolled_class_ids) row.enrolled_class_ids = []
+      if (!row.interested_class_ids) row.interested_class_ids = []
+      
+      preview.push(row)
+    }
+    
+    setPreviewData(preview)
+  }
+
+  const convertDate = (dateStr: string): string => {
+    // Default date if parsing fails
+    const DEFAULT_DATE = '2099-01-01'
+    
+    if (!dateStr || !dateStr.trim()) return DEFAULT_DATE
+    
+    const trimmed = dateStr.trim()
+    
+    // Format: "2022-10-14 00:00:00.0" or "2022-10-14T00:00:00" (YYYY-MM-DD)
+    if (trimmed.includes('-') && (trimmed.includes(' ') || trimmed.includes('T'))) {
+      const datePart = trimmed.split(/[\sT]/)[0]
+      // Validate the date part
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        const [year, month, day] = datePart.split('-').map(Number)
+        if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return datePart
+        }
+      }
+    }
+    
+    // Format: "01.07.2020  0:00:00" or "21.01.2020  0:00:00" (DD.MM.YYYY with optional time)
+    // This is the most common format in Ukrainian/Russian CSV files
+    const dotMatchWithTime = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+.*$/)
+    if (dotMatchWithTime) {
+      const [, day, month, year] = dotMatchWithTime
+      const dayNum = parseInt(day, 10)
+      const monthNum = parseInt(month, 10)
+      const yearNum = parseInt(year, 10)
+      // Validate date - DD.MM.YYYY format
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        // Construct as YYYY-MM-DD (ISO format)
+        return `${yearNum}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+      }
+    }
+    
+    // Format: "25.01.2022" (DD.MM.YYYY) - without time
+    const dotMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+    if (dotMatch) {
+      const [, day, month, year] = dotMatch
+      const dayNum = parseInt(day, 10)
+      const monthNum = parseInt(month, 10)
+      const yearNum = parseInt(year, 10)
+      // Validate date - DD.MM.YYYY format
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        // Construct as YYYY-MM-DD (ISO format)
+        return `${yearNum}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+      }
+    }
+    
+    // Format: "25,01,2022" or "25/01/2022" (DD/MM/YYYY or DD,MM,YYYY)
+    const slashMatch = trimmed.match(/^(\d{1,2})[,\/](\d{1,2})[,\/](\d{4})$/)
+    if (slashMatch) {
+      const [, day, month, year] = slashMatch
+      const dayNum = parseInt(day, 10)
+      const monthNum = parseInt(month, 10)
+      const yearNum = parseInt(year, 10)
+      // Validate date - DD/MM/YYYY format
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        // Construct as YYYY-MM-DD (ISO format)
+        return `${yearNum}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+      }
+    }
+    
+    // Format: "2022.01.25" (YYYY.MM.DD)
+    const ymdDotMatch = trimmed.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/)
+    if (ymdDotMatch) {
+      const [, year, month, day] = ymdDotMatch
+      const dayNum = parseInt(day, 10)
+      const monthNum = parseInt(month, 10)
+      const yearNum = parseInt(year, 10)
+      // Validate date
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        return `${yearNum}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+      }
+    }
+    
+    // Format: "лет: 05 месяцев: 03" - calculate from age
+    const ageMatch = trimmed.match(/лет:\s*(\d+)\s*месяцев:\s*(\d+)/)
+    if (ageMatch) {
+      const [, years, months] = ageMatch
+      const today = new Date()
+      const birthDate = new Date(today.getFullYear() - parseInt(years, 10), today.getMonth() - parseInt(months, 10), today.getDate())
+      if (!isNaN(birthDate.getTime())) {
+        const year = birthDate.getFullYear()
+        if (year >= 1900 && year <= 2100) {
+          return birthDate.toISOString().split('T')[0]
+        }
+      }
+    }
+    
+    // Try to parse as ISO date (YYYY-MM-DD)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [year, month, day] = trimmed.split('-').map(Number)
+      if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return trimmed
+      }
+    }
+    
+    // Last resort: try JavaScript Date parsing (but be careful - it might interpret as MM/DD/YYYY)
+    // Only use this if we can't match any pattern above
+    const parsed = new Date(trimmed)
+    if (!isNaN(parsed.getTime())) {
+      const year = parsed.getFullYear()
+      if (year >= 1900 && year <= 2100) {
+        return parsed.toISOString().split('T')[0]
+      }
+    }
+    
+    // If all parsing fails, return default date
+    console.warn(`Could not parse date: "${dateStr}", using default date: ${DEFAULT_DATE}`)
+    return DEFAULT_DATE
+  }
+
+  const parseClasses = (classStr: string): string[] => {
+    if (!classStr) return []
+    
+    // Extract class names from brackets like "[Мини-сад Пн-Пт  3-4 года-Тодорова Юлия]"
+    const bracketMatches = classStr.match(/\[([^\]]+)\]/g)
+    if (bracketMatches) {
+      return bracketMatches.map(match => match.replace(/[\[\]]/g, '').trim())
+    }
+    
+    // Split by comma if no brackets
+    return classStr.split(',').map(c => c.trim()).filter(Boolean)
+  }
+
+  const findClassByName = (className: string): string | null => {
+    if (!className) return null
+    
+    // Try exact match first
+    const exactMatch = classes.find(c => c.name === className)
+    if (exactMatch) return exactMatch.id
+    
+    // Try partial match - extract key words from CSV class name
+    const csvLower = className.toLowerCase()
+    const keyWords = csvLower.split(/[\s\-,\/]+/).filter(w => w.length > 2)
+    
+    // Try to find class by matching key words
+    for (const cls of classes) {
+      const dbNameLower = cls.name.toLowerCase()
+      // Check if most key words are present in database class name
+      const matches = keyWords.filter(word => dbNameLower.includes(word))
+      if (matches.length >= Math.min(2, keyWords.length)) {
+        return cls.id
+      }
+    }
+    
+    return null
+  }
+
+  const handleMappingChange = (csvHeader: string, dbField: string) => {
+    const newMapping = { ...fieldMapping, [csvHeader]: dbField }
+    setFieldMapping(newMapping)
+    generatePreview(csvHeaders, csvData, newMapping)
+  }
+
+  const handleImport = async () => {
+    if (csvData.length === 0) return
+
+    setImporting(true)
+    try {
+      const studentsToImport: Array<{
+        student_first_name: string
+        student_last_name: string
+        student_date_of_birth: string
+        parent_first_name: string
+        parent_middle_name: string | null
+        phone: string
+        email: string | null
+        status: string
+        comment: string | null
+        enrolled_class_ids: string[]
+        interested_class_ids: string[]
+      }> = []
+
+      csvData.forEach((row) => {
+        const student: any = {
+          student_first_name: '',
+          student_last_name: '',
+          student_date_of_birth: null,
+          parent_first_name: '',
+          parent_middle_name: null,
+          phone: '',
+          email: null,
+          status: 'active',
+          comment: null,
+          enrolled_class_ids: [],
+          interested_class_ids: [],
+        }
+
+        csvHeaders.forEach((header, index) => {
+          const dbField = fieldMapping[header]
+          if (dbField && dbField !== 'skip' && row[index] !== undefined) {
+            let value = row[index]?.trim() || ''
+            
+            if (dbField === 'student_date_of_birth') {
+              value = value ? convertDate(value) : '2099-01-01'
+            } else if (dbField === 'enrolled_classes' && value) {
+              const classNames = parseClasses(value)
+              const classIds = classNames
+                .map(name => findClassByName(name))
+                .filter((id): id is string => Boolean(id))
+              student.enrolled_class_ids = classIds
+              return
+            } else if (dbField === 'interested_classes' && value) {
+              const classNames = parseClasses(value)
+              const classIds = classNames
+                .map(name => findClassByName(name))
+                .filter((id): id is string => Boolean(id))
+              student.interested_class_ids = classIds
+              return
+            } else if (dbField === 'phone' && value) {
+              // Normalize phone number - remove spaces, keep + if present
+              value = value.replace(/\s/g, '')
+              // If starts with 0, can optionally convert to +380
+              if (value.startsWith('0') && value.length === 10) {
+                value = '+380' + value.substring(1)
+              }
+            } else if (dbField === 'email' && !value) {
+              value = null
+            } else if (dbField === 'parent_middle_name' && !value) {
+              value = null
+            } else if (dbField === 'comment' && !value) {
+              value = null
+            }
+            
+            student[dbField] = value
+          }
+        })
+
+        // Handle case where student name might be in one field (split by space)
+        // If we have student_first_name but it contains both first and last name
+        if (student.student_first_name && !student.student_last_name) {
+          const nameParts = student.student_first_name.trim().split(/\s+/)
+          if (nameParts.length > 1) {
+            student.student_first_name = nameParts[0]
+            student.student_last_name = nameParts.slice(1).join(' ')
+          }
+        }
+        
+        // Skip rows with no student name at all
+        if (!student.student_first_name && !student.student_last_name) {
+          return
+        }
+
+        // Only import if we have at least first name or last name
+        if (student.student_first_name || student.student_last_name) {
+          studentsToImport.push(student)
+        }
+      })
+
+      await onImport(studentsToImport)
+    } catch (error) {
+      console.error('Error importing:', error)
+      alert('Помилка імпорту')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Виберіть CSV файл
+        </label>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleFileUpload}
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Підтримується формат CSV з роздільником ";"
+        </p>
+      </div>
+
+      {csvHeaders.length > 0 && (
+        <>
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">
+              Зіставлення полів
+            </h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-2">
+              {csvHeaders.map((header) => (
+                <div key={header} className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 w-48 truncate" title={header}>
+                    {header}:
+                  </span>
+                  <Select
+                    value={fieldMapping[header] || 'skip'}
+                    onChange={(e) => handleMappingChange(header, e.target.value)}
+                    className="flex-1"
+                  >
+                    {dbFields.map((field) => (
+                      <option key={field.value} value={field.value}>
+                        {field.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {previewData.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">
+                Попередній перегляд (перші 5 рядків)
+              </h3>
+              <div className="border rounded overflow-x-auto max-h-64">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Ім'я</th>
+                      <th className="px-2 py-1 text-left">Прізвище</th>
+                      <th className="px-2 py-1 text-left">Дата народження</th>
+                      <th className="px-2 py-1 text-left">Батько</th>
+                      <th className="px-2 py-1 text-left">Телефон</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.map((row, idx) => (
+                      <tr key={idx} className="border-t">
+                        <td className="px-2 py-1">{row.student_first_name || '-'}</td>
+                        <td className="px-2 py-1">{row.student_last_name || '-'}</td>
+                        <td className="px-2 py-1">{row.student_date_of_birth || '-'}</td>
+                        <td className="px-2 py-1">{row.parent_first_name || '-'}</td>
+                        <td className="px-2 py-1">{row.phone || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={onClose}
+            >
+              Скасувати
+            </Button>
+            <Button
+              variant="success"
+              onClick={handleImport}
+              disabled={importing || csvData.length === 0}
+            >
+              {importing ? 'Імпорт...' : `Імпортувати ${csvData.length} студентів`}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useTranslation } from 'react-i18next'
+import { Select } from '@/components/ui/select'
 
 interface StudentWithTestLesson {
   student_id: string
@@ -30,13 +31,27 @@ export default function NewStudentsPage() {
   const [studentsWithTestLesson, setStudentsWithTestLesson] = useState<StudentWithTestLesson[]>([])
   const [studentsAttendedFirstTime, setStudentsAttendedFirstTime] = useState<StudentAttendedFirstTime[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Month and year selection (default to current month/year)
+  const currentDate = new Date()
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth())
+
+  // Generate year options (current year and previous 5 years)
+  const currentYear = currentDate.getFullYear()
+  const years = Array.from({ length: 6 }, (_, i) => currentYear - i)
+  
+  // Month names in Ukrainian
+  const monthNames = [
+    'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+    'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+  ]
 
   const fetchNewStudentsData = useCallback(async () => {
     try {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1)
-      const monthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0, 23, 59, 59, 999)
+      // Use selected month and year instead of current date
+      const monthStart = new Date(selectedYear, selectedMonth, 1)
+      const monthEnd = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59, 999)
 
       // Section 1: Fetch students who get test lesson this month (all test payments this month)
       const { data: testPaymentsThisMonth } = await supabase
@@ -176,7 +191,7 @@ export default function NewStudentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, selectedYear, selectedMonth])
 
   useEffect(() => {
     fetchNewStudentsData()
@@ -192,7 +207,39 @@ export default function NewStudentsPage() {
 
   return (
     <div className="p-8 space-y-8">
-      <h1 className="text-3xl font-bold text-gray-900">{t('dashboard.newStudents')}</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">{t('dashboard.newStudents')}</h1>
+        <div className="flex gap-4 items-center">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.month')}</label>
+            <Select
+              value={selectedMonth.toString()}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="w-40"
+            >
+              {monthNames.map((month, index) => (
+                <option key={index} value={index}>
+                  {month}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.year')}</label>
+            <Select
+              value={selectedYear.toString()}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="w-32"
+            >
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+      </div>
 
       {/* Area 1: Students Who Get Test Lesson This Month */}
       <div className="bg-white rounded-lg shadow p-6">

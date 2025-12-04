@@ -412,14 +412,14 @@ export default function StudentPaymentsPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('payments.paymentType', 'Тип платежу')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.paymentType')}</label>
               <Select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
               >
-                <option value="cash">{tt('common.cash', 'Готівка')}</option>
-                <option value="card">{tt('common.card', 'Картка')}</option>
-                <option value="free">{tt('common.free', 'Безплатне')}</option>
+                <option value="cash">{t('payments.cash')}</option>
+                <option value="card">{t('payments.card')}</option>
+                <option value="free">{t('payments.free')}</option>
               </Select>
             </div>
           </div>
@@ -480,9 +480,9 @@ export default function StudentPaymentsPage() {
             className="w-48"
           >
             <option value="all">{t('common.allPaymentTypes')}</option>
-            <option value="cash">{t('common.cash')}</option>
-            <option value="card">{t('common.card')}</option>
-            <option value="free">{t('common.free')}</option>
+            <option value="cash">{t('payments.cash')}</option>
+            <option value="card">{t('payments.card')}</option>
+            <option value="free">{t('payments.free')}</option>
           </Select>
         </div>
         <div className="flex gap-4">
