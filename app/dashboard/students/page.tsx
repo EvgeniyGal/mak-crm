@@ -248,7 +248,7 @@ export default function StudentsPage() {
     setFormData({
       student_first_name: student.student_first_name,
       student_last_name: student.student_last_name,
-      student_date_of_birth: student.student_date_of_birth,
+      student_date_of_birth: student.student_date_of_birth || '',
       parent_first_name: student.parent_first_name,
       parent_middle_name: student.parent_middle_name || '',
       phone: student.phone,
@@ -408,34 +408,36 @@ export default function StudentsPage() {
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter
 
     // Age filter - convert years and months to total months for comparison
-    const dob = new Date(student.student_date_of_birth)
-    const now = new Date()
-    let years = now.getFullYear() - dob.getFullYear()
-    let months = now.getMonth() - dob.getMonth()
-    if (months < 0) {
-      years--
-      months += 12
-    }
-    if (now.getDate() < dob.getDate()) {
-      months--
+    let matchesAgeRange = true
+    if (student.student_date_of_birth) {
+      const dob = new Date(student.student_date_of_birth)
+      const now = new Date()
+      let years = now.getFullYear() - dob.getFullYear()
+      let months = now.getMonth() - dob.getMonth()
       if (months < 0) {
         years--
         months += 12
       }
-    }
-    const totalMonths = years * 12 + months
-    
-    const hasMinAge = minAgeYears !== '' || minAgeMonths !== ''
-    const hasMaxAge = maxAgeYears !== '' || maxAgeMonths !== ''
-    
-    let matchesAgeRange = true
-    if (hasMinAge) {
-      const minTotalMonths = (minAgeYears ? parseInt(minAgeYears) || 0 : 0) * 12 + (minAgeMonths ? parseInt(minAgeMonths) || 0 : 0)
-      matchesAgeRange = matchesAgeRange && totalMonths >= minTotalMonths
-    }
-    if (hasMaxAge) {
-      const maxTotalMonths = (maxAgeYears ? parseInt(maxAgeYears) || 0 : 0) * 12 + (maxAgeMonths ? parseInt(maxAgeMonths) || 0 : 0)
-      matchesAgeRange = matchesAgeRange && totalMonths <= maxTotalMonths
+      if (now.getDate() < dob.getDate()) {
+        months--
+        if (months < 0) {
+          years--
+          months += 12
+        }
+      }
+      const totalMonths = years * 12 + months
+      
+      const hasMinAge = minAgeYears !== '' || minAgeMonths !== ''
+      const hasMaxAge = maxAgeYears !== '' || maxAgeMonths !== ''
+      
+      if (hasMinAge) {
+        const minTotalMonths = (minAgeYears ? parseInt(minAgeYears) || 0 : 0) * 12 + (minAgeMonths ? parseInt(minAgeMonths) || 0 : 0)
+        matchesAgeRange = matchesAgeRange && totalMonths >= minTotalMonths
+      }
+      if (hasMaxAge) {
+        const maxTotalMonths = (maxAgeYears ? parseInt(maxAgeYears) || 0 : 0) * 12 + (maxAgeMonths ? parseInt(maxAgeMonths) || 0 : 0)
+        matchesAgeRange = matchesAgeRange && totalMonths <= maxTotalMonths
+      }
     }
 
     // Course filter
@@ -450,8 +452,8 @@ export default function StudentsPage() {
     let bValue: string | number = b[sortBy as keyof Student] as string | number
 
     if (sortBy === 'age') {
-      aValue = new Date(a.student_date_of_birth).getTime()
-      bValue = new Date(b.student_date_of_birth).getTime()
+      aValue = a.student_date_of_birth ? new Date(a.student_date_of_birth).getTime() : 0
+      bValue = b.student_date_of_birth ? new Date(b.student_date_of_birth).getTime() : 0
     } else if (sortBy === 'student_full_name') {
       aValue = `${a.student_first_name} ${a.student_last_name}`
       bValue = `${b.student_first_name} ${b.student_last_name}`
@@ -704,7 +706,7 @@ export default function StudentsPage() {
                     {student.student_first_name} {student.student_last_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatAge(student.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort'))}
+                    {student.student_date_of_birth ? formatAge(student.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort')) : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.parent_first_name} {student.parent_middle_name || ''}
@@ -1216,11 +1218,10 @@ interface ImportStudentsModalProps {
 }
 
 function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModalProps) {
-  const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvData, setCsvData] = useState<string[][]>([])
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({})
-  const [previewData, setPreviewData] = useState<Array<Record<string, any>>>([])
+  const [previewData, setPreviewData] = useState<Array<Record<string, string | string[] | null>>>([])
   const [importing, setImporting] = useState(false)
 
   // Available database fields
@@ -1275,7 +1276,6 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
     const file = e.target.files?.[0]
     if (!file) return
 
-    setCsvFile(file)
     const reader = new FileReader()
     
     // Try to read as Windows-1251 first, fallback to UTF-8
@@ -1290,7 +1290,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
         try {
           const bytes = new Uint8Array(arrayBuffer)
           text = decodeWindows1251(bytes)
-        } catch (error) {
+        } catch {
           // Fallback to UTF-8
           const decoder = new TextDecoder('utf-8')
           text = decoder.decode(arrayBuffer)
@@ -1338,24 +1338,24 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
   }
 
   const generatePreview = (headers: string[], data: string[][], mapping: Record<string, string>) => {
-    const preview: Array<Record<string, any>> = []
+    const preview: Array<Record<string, string | string[] | null>> = []
     const maxPreview = Math.min(5, data.length)
 
     for (let i = 0; i < maxPreview; i++) {
-      const row: Record<string, any> = {}
+      const row: Record<string, string | string[] | null> = {}
       headers.forEach((header, index) => {
         const dbField = mapping[header]
         if (dbField && dbField !== 'skip' && data[i] && data[i][index] !== undefined) {
-          let value = data[i][index]?.trim() || ''
+          let value: string | string[] = data[i][index]?.trim() || ''
           
           // Convert date formats
           if (dbField === 'student_date_of_birth') {
-            value = value ? convertDate(value) : '2099-01-01'
+            value = value ? convertDate(value as string) : '2099-01-01'
           }
           
           // Parse classes (comma or bracket separated)
           if (dbField === 'enrolled_classes' || dbField === 'interested_classes') {
-            value = parseClasses(value)
+            value = parseClasses(value as string)
           }
           
           row[dbField] = value
@@ -1541,7 +1541,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
       const studentsToImport: Array<{
         student_first_name: string
         student_last_name: string
-        student_date_of_birth: string
+        student_date_of_birth: string | null
         parent_first_name: string
         parent_middle_name: string | null
         phone: string
@@ -1553,7 +1553,19 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
       }> = []
 
       csvData.forEach((row) => {
-        const student: any = {
+        const student: {
+          student_first_name: string
+          student_last_name: string
+          student_date_of_birth: string | null
+          parent_first_name: string
+          parent_middle_name: string | null
+          phone: string
+          email: string | null
+          status: string
+          comment: string | null
+          enrolled_class_ids: string[]
+          interested_class_ids: string[]
+        } = {
           student_first_name: '',
           student_last_name: '',
           student_date_of_birth: null,
@@ -1570,7 +1582,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
         csvHeaders.forEach((header, index) => {
           const dbField = fieldMapping[header]
           if (dbField && dbField !== 'skip' && row[index] !== undefined) {
-            let value = row[index]?.trim() || ''
+            let value: string | null = row[index]?.trim() || ''
             
             if (dbField === 'student_date_of_birth') {
               value = value ? convertDate(value) : '2099-01-01'
@@ -1603,7 +1615,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
               value = null
             }
             
-            student[dbField] = value
+            ;(student as Record<string, string | string[] | null>)[dbField] = value
           }
         })
 
@@ -1650,7 +1662,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
           className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
         />
         <p className="mt-1 text-xs text-gray-500">
-          Підтримується формат CSV з роздільником ";"
+          Підтримується формат CSV з роздільником &quot;;&quot;
         </p>
       </div>
 
@@ -1691,7 +1703,7 @@ function ImportStudentsModal({ onImport, onClose, classes }: ImportStudentsModal
                 <table className="min-w-full text-xs">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-2 py-1 text-left">Ім'я</th>
+                      <th className="px-2 py-1 text-left">Ім&apos;я</th>
                       <th className="px-2 py-1 text-left">Прізвище</th>
                       <th className="px-2 py-1 text-left">Дата народження</th>
                       <th className="px-2 py-1 text-left">Батько</th>

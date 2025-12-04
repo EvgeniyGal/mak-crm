@@ -121,7 +121,6 @@ export default function FinancePage() {
       // Get today's date to ensure we fetch today's transactions for balance calculation
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       const todayEnd = new Date(today)
       todayEnd.setHours(23, 59, 59, 999)
       
@@ -224,97 +223,6 @@ export default function FinancePage() {
           }
         })
       }
-
-      // Calculate balance at start of current day (balance up to but not including today)
-      // We need to go through all dates from startDate to today, not just the selected range
-      let balanceAtStartOfCurrentDay = initialBalanceCash + initialBalanceCard
-      let runningBalanceCashForStart = initialBalanceCash
-      let runningBalanceCardForStart = initialBalanceCard
-
-      // Generate all dates from startDate to today (for balance calculation)
-      const allDatesToToday: string[] = []
-      const calcDate = new Date(startDate)
-      while (calcDate < today) {
-        const year = calcDate.getFullYear()
-        const month = String(calcDate.getMonth() + 1).padStart(2, '0')
-        const day = String(calcDate.getDate()).padStart(2, '0')
-        const dateStr = `${year}-${month}-${day}`
-        allDatesToToday.push(dateStr)
-        calcDate.setDate(calcDate.getDate() + 1)
-      }
-
-      // Calculate balance up to (but not including) today
-      for (const dateStr of allDatesToToday) {
-        const date = new Date(dateStr)
-        date.setHours(0, 0, 0, 0)
-
-        // Filter transactions for this date
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dayPayments = payments?.filter((p: any) => {
-          const paymentDate = new Date(p.updated_at || p.created_at)
-          return paymentDate.getFullYear() === date.getFullYear() &&
-                 paymentDate.getMonth() === date.getMonth() &&
-                 paymentDate.getDate() === date.getDate()
-        }) || []
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dayExpenditures = expenditures?.filter((e: any) => {
-          const expDate = new Date(e.created_at)
-          return expDate.getFullYear() === date.getFullYear() &&
-                 expDate.getMonth() === date.getMonth() &&
-                 expDate.getDate() === date.getDate()
-        }) || []
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const daySalaries = salaries?.filter((s: any) => {
-          const salDate = new Date(s.created_at)
-          return salDate.getFullYear() === date.getFullYear() &&
-                 salDate.getMonth() === date.getMonth() &&
-                 salDate.getDate() === date.getDate()
-        }) || []
-
-        // Calculate incomes for this date
-        let incomesCash = 0
-        let incomesCard = 0
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        dayPayments.forEach((payment: any) => {
-          const amount = payment.package_types?.amount || 0
-          if (payment.type === 'cash') {
-            incomesCash += amount
-          } else if (payment.type === 'card') {
-            incomesCard += amount
-          }
-        })
-
-        // Calculate expenditures for this date
-        let expendituresCash = 0
-        let expendituresCard = 0
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        dayExpenditures.forEach((expenditure: any) => {
-          if (expenditure.payment_type === 'cash') {
-            expendituresCash += expenditure.amount
-          } else if (expenditure.payment_type === 'card') {
-            expendituresCard += expenditure.amount
-          }
-        })
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        daySalaries.forEach((salary: any) => {
-          if (salary.payment_type === 'cash') {
-            expendituresCash += salary.amount
-          } else if (salary.payment_type === 'card') {
-            expendituresCard += salary.amount
-          }
-        })
-
-        // Update balance
-        runningBalanceCashForStart += incomesCash - expendituresCash
-        runningBalanceCardForStart += incomesCard - expendituresCard
-      }
-
-      // Calculate balance at start of current day
-      balanceAtStartOfCurrentDay = runningBalanceCashForStart + runningBalanceCardForStart
 
       // Now calculate data for each date in the range (for display)
       const rows: FinanceRow[] = []
