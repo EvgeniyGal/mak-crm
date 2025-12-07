@@ -28,9 +28,11 @@ export default function FinancePage() {
   const [financeData, setFinanceData] = useState<FinanceRow[]>([])
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
+  const [initialBalance, setInitialBalance] = useState<number>(0)
   // Debounced values for actual data fetching
   const [debouncedDateStart, setDebouncedDateStart] = useState('')
   const [debouncedDateEnd, setDebouncedDateEnd] = useState('')
+  const [debouncedInitialBalance, setDebouncedInitialBalance] = useState<number>(0)
   const isInitialMount = useRef(true)
 
   // Set default to current week (Monday to today)
@@ -101,6 +103,9 @@ export default function FinancePage() {
       startDate.setHours(0, 0, 0, 0)
       const endDate = new Date(debouncedDateEnd)
       endDate.setHours(23, 59, 59, 999)
+      
+      // Use the debounced initialBalance value
+      const currentInitialBalance = debouncedInitialBalance
 
       // Get all dates in range
       const dates: string[] = []
@@ -156,6 +161,8 @@ export default function FinancePage() {
       if (salariesError) throw salariesError
 
       // Calculate initial balance (balance from previous days in the week)
+      // If user has set initialBalance, we'll use it for the first date's balanceAsOfStartDay
+      // Otherwise, calculate from previous days
       const firstDate = new Date(startDate)
       const dayOfWeek = firstDate.getDay()
       // Monday is day 1, but getDay() returns 0 for Sunday, 1 for Monday, etc.
@@ -164,7 +171,8 @@ export default function FinancePage() {
       let initialBalanceCash = 0
       let initialBalanceCard = 0
 
-      if (!isMonday) {
+      // Only calculate from previous days if user hasn't set initialBalance
+      if (currentInitialBalance === 0 && !isMonday) {
         // Get previous days in the week (from Monday of current week to start date)
         const weekStart = new Date(firstDate)
         weekStart.setDate(firstDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
@@ -230,11 +238,13 @@ export default function FinancePage() {
       let runningBalanceCard = initialBalanceCard
 
       // Process each date
-      for (const dateStr of dates) {
+      for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
+        const dateStr = dates[dateIndex]
         const date = new Date(dateStr)
         date.setHours(0, 0, 0, 0)
         const nextDate = new Date(date)
         nextDate.setDate(nextDate.getDate() + 1)
+        const isFirstDateInRange = dateIndex === 0
 
         // Filter transactions for this date
         // Compare dates by creating date objects and comparing year, month, day
@@ -298,7 +308,23 @@ export default function FinancePage() {
         })
 
         // Store balance before adding today's transactions (this is the balance as of start of day)
-        const balanceAsOfStartDay = runningBalanceCash + runningBalanceCard
+        // For the first date, use user-provided initial balance if set (non-zero)
+        let balanceAsOfStartDay = runningBalanceCash + runningBalanceCard
+        if (isFirstDateInRange && currentInitialBalance !== 0) {
+          balanceAsOfStartDay = currentInitialBalance
+          // Adjust running balances to match the user-provided initial balance
+          // We'll distribute proportionally if we have calculated balances, otherwise put it all in cash
+          const calculatedTotal = initialBalanceCash + initialBalanceCard
+          if (calculatedTotal > 0) {
+            const ratio = currentInitialBalance / calculatedTotal
+            runningBalanceCash = initialBalanceCash * ratio
+            runningBalanceCard = initialBalanceCard * ratio
+          } else {
+            // If no calculated balance, put it all in cash
+            runningBalanceCash = currentInitialBalance
+            runningBalanceCard = 0
+          }
+        }
 
         // Calculate balances after today's transactions
         runningBalanceCash += incomesCash - expendituresCash
@@ -331,9 +357,8 @@ export default function FinancePage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedDateStart, debouncedDateEnd, supabase])
+  }, [debouncedDateStart, debouncedDateEnd, debouncedInitialBalance, supabase])
 
-  // Debounce date changes - wait 500ms after user stops changing dates
   // On initial mount, set debounced values immediately (no delay)
   useEffect(() => {
     if (isInitialMount.current) {
@@ -341,24 +366,33 @@ export default function FinancePage() {
       if (dateRangeStart && dateRangeEnd) {
         setDebouncedDateStart(dateRangeStart)
         setDebouncedDateEnd(dateRangeEnd)
+        setDebouncedInitialBalance(initialBalance)
         isInitialMount.current = false
       }
+    }
+    // Note: Date fields now update on blur only via onBlur handlers, not via this useEffect
+  }, []) // Empty dependency array - only run on mount
+
+  // Debounce initial balance changes - wait 1 second after user stops typing
+  useEffect(() => {
+    if (isInitialMount.current) {
+      // Initial load - set immediately
+      setDebouncedInitialBalance(initialBalance)
     } else {
-      // Subsequent changes - debounce for 500ms
+      // Subsequent changes - debounce for 1 second
       const timer = setTimeout(() => {
-        setDebouncedDateStart(dateRangeStart)
-        setDebouncedDateEnd(dateRangeEnd)
-      }, 500)
+        setDebouncedInitialBalance(initialBalance)
+      }, 1000)
 
       return () => clearTimeout(timer)
     }
-  }, [dateRangeStart, dateRangeEnd])
+  }, [initialBalance])
 
   useEffect(() => {
     if (debouncedDateStart && debouncedDateEnd) {
       fetchFinanceData()
     }
-  }, [debouncedDateStart, debouncedDateEnd, fetchFinanceData])
+  }, [debouncedDateStart, debouncedDateEnd, debouncedInitialBalance, fetchFinanceData])
 
   const totalIncomesCash = financeData.reduce((sum, row) => sum + row.incomesCash, 0)
   const totalIncomesCard = financeData.reduce((sum, row) => sum + row.incomesCard, 0)
@@ -509,6 +543,12 @@ export default function FinancePage() {
               type="date"
               value={dateRangeStart}
               onChange={(e) => setDateRangeStart(e.target.value)}
+              onBlur={(e) => {
+                // Apply changes only on blur - update both local and debounced state
+                const newValue = e.target.value
+                setDateRangeStart(newValue)
+                setDebouncedDateStart(newValue)
+              }}
               className="w-48"
             />
           </div>
@@ -518,7 +558,25 @@ export default function FinancePage() {
               type="date"
               value={dateRangeEnd}
               onChange={(e) => setDateRangeEnd(e.target.value)}
+              onBlur={(e) => {
+                // Apply changes only on blur - update both local and debounced state
+                const newValue = e.target.value
+                setDateRangeEnd(newValue)
+                setDebouncedDateEnd(newValue)
+              }}
               className="w-48"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('finance.balanceAsOfStartDay')}</label>
+            <Input
+              type="number"
+              value={initialBalance}
+              onChange={(e) => setInitialBalance(parseFloat(e.target.value) || 0)}
+              className="w-48"
+              placeholder="0"
+              step="0.01"
+              min="0"
             />
           </div>
           <div className="flex gap-2">

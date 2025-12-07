@@ -20,7 +20,6 @@ interface Payment {
   package_type_id: string
   status: string
   type: string
-  available_lesson_count: number
   created_at: string
   updated_at?: string
   comment?: string
@@ -38,6 +37,7 @@ interface Student {
 interface Class {
   id: string
   name: string
+  status?: string
 }
 
 interface PackageType {
@@ -78,7 +78,6 @@ export default function PaymentsPage() {
     package_type_id: '',
     status: 'pending',
     type: 'cash',
-    available_lesson_count: 0,
     comment: '',
   })
 
@@ -121,7 +120,7 @@ export default function PaymentsPage() {
     try {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, name')
+        .select('id, name, status')
 
       if (error) throw error
       setClasses(data || [])
@@ -160,14 +159,10 @@ export default function PaymentsPage() {
   }
 
   const handlePackageTypeChange = (packageTypeId: string) => {
-    const packageType = packageTypes.find(pt => pt.id === packageTypeId)
-    if (packageType) {
-      setFormData({
-        ...formData,
-        package_type_id: packageTypeId,
-        available_lesson_count: packageType.lesson_count,
-      })
-    }
+    setFormData({
+      ...formData,
+      package_type_id: packageTypeId,
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,10 +175,53 @@ export default function PaymentsPage() {
           .eq('id', editingPayment.id)
         if (error) throw error
       } else {
+        // Create payment
         const { error } = await supabase
           .from('payments')
           .insert([formData])
         if (error) throw error
+
+        // Add lessons to student_class_lessons regardless of payment status
+        if (formData.student_id && formData.class_id && formData.package_type_id) {
+          // Get package type to get lesson_count
+          const packageType = packageTypes.find(pt => pt.id === formData.package_type_id)
+          if (packageType && packageType.lesson_count > 0) {
+            // Get or create student_class_lessons record
+            const { data: existingRecord, error: fetchError } = await supabase
+              .from('student_class_lessons')
+              .select('id, lesson_count')
+              .eq('student_id', formData.student_id)
+              .eq('class_id', formData.class_id)
+              .single()
+
+            if (fetchError && fetchError.code !== 'PGRST116') {
+              console.error('Error fetching student_class_lessons:', fetchError)
+            } else if (existingRecord) {
+              // Update existing record - add lessons
+              const { error: updateError } = await supabase
+                .from('student_class_lessons')
+                .update({
+                  lesson_count: existingRecord.lesson_count + packageType.lesson_count
+                })
+                .eq('id', existingRecord.id)
+              if (updateError) {
+                console.error('Error updating student_class_lessons:', updateError)
+              }
+            } else {
+              // Create new record
+              const { error: insertError } = await supabase
+                .from('student_class_lessons')
+                .insert({
+                  student_id: formData.student_id,
+                  class_id: formData.class_id,
+                  lesson_count: packageType.lesson_count
+                })
+              if (insertError) {
+                console.error('Error creating student_class_lessons:', insertError)
+              }
+            }
+          }
+        }
       }
 
       await fetchPayments()
@@ -203,7 +241,6 @@ export default function PaymentsPage() {
       package_type_id: payment.package_type_id,
       status: payment.status,
       type: payment.type,
-      available_lesson_count: payment.available_lesson_count,
       comment: payment.comment || '',
     })
     setIsModalOpen(true)
@@ -232,7 +269,6 @@ export default function PaymentsPage() {
       package_type_id: '',
       status: 'pending',
       type: 'cash',
-      available_lesson_count: 0,
       comment: '',
     })
     setEditingPayment(null)
@@ -247,7 +283,7 @@ export default function PaymentsPage() {
 
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter
     const matchesType = typeFilter === 'all' || payment.type === typeFilter
-    const matchesCourse = courseFilter === 'all' || payment.class_id === courseFilter
+    const matchesCourse = courseFilter === 'all' || (payment.class_id && payment.class_id === courseFilter)
 
     // Date range filter (created)
     let matchesDateRange = true
@@ -343,7 +379,6 @@ export default function PaymentsPage() {
       { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
       { header: t('common.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : t('payments.pending') },
       { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.free') },
-      { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
       { header: t('payments.comment'), accessor: (row) => row.comment || '' },
     ]
@@ -358,7 +393,6 @@ export default function PaymentsPage() {
       { header: t('payments.amount'), accessor: (row) => row.package_types?.amount || 0 },
       { header: t('common.status'), accessor: (row) => row.status === 'paid' ? t('payments.paid') : t('payments.pending') },
       { header: t('payments.paymentType'), accessor: (row) => row.type === 'cash' ? t('payments.cash') : row.type === 'card' ? t('payments.card') : t('payments.free') },
-      { header: t('payments.availableLessons'), accessor: (row) => row.available_lesson_count },
       { header: t('common.createdAt'), accessor: (row) => formatDate(row.created_at) },
       { header: t('payments.comment'), accessor: (row) => row.comment || '' },
     ]
@@ -425,7 +459,7 @@ export default function PaymentsPage() {
             className="w-48"
           >
             <option value="all">{t('common.all')} {t('payments.courses')}</option>
-            {classes.map((cls) => (
+            {classes.filter(cls => cls.status === 'active').map((cls) => (
               <option key={cls.id} value={cls.id}>
                 {cls.name}
               </option>
@@ -504,9 +538,6 @@ export default function PaymentsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('payments.paymentType')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('payments.availableLessons')}
-                </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
                   onClick={() => handleSort('created_at')}
@@ -549,13 +580,6 @@ export default function PaymentsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {payment.type === 'cash' ? t('payments.cash') : payment.type === 'card' ? t('payments.card') : t('payments.free')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`font-medium ${
-                      payment.available_lesson_count > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {payment.available_lesson_count}
-                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(payment.created_at)}
@@ -641,6 +665,7 @@ export default function PaymentsPage() {
               value={formData.student_id}
               onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
               required
+              disabled={!!editingPayment}
             >
               <option value="">{t('common.selectStudent')}</option>
               {students.map((student) => (
@@ -656,6 +681,7 @@ export default function PaymentsPage() {
               value={formData.class_id}
               onChange={(e) => handleClassChange(e.target.value)}
               required
+              disabled={!!editingPayment}
             >
               <option value="">{t('common.selectClass')}</option>
               {classes.map((cls) => (
@@ -671,7 +697,7 @@ export default function PaymentsPage() {
               value={formData.package_type_id}
               onChange={(e) => handlePackageTypeChange(e.target.value)}
               required
-              disabled={!formData.class_id}
+              disabled={!formData.class_id || !!editingPayment}
             >
               <option value="">{t('common.selectPackageType')}</option>
               {availablePackageTypes.map((pt) => (
@@ -702,6 +728,7 @@ export default function PaymentsPage() {
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 required
+                disabled={!!editingPayment}
               >
                 <option value="cash">{t('payments.cash')}</option>
                 <option value="card">{t('payments.card')}</option>
@@ -714,16 +741,21 @@ export default function PaymentsPage() {
             <textarea
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              className="w-full border-2 border-gray-400 rounded-md px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               rows={3}
               placeholder={t('payments.commentPlaceholder')}
+              disabled={!!editingPayment}
             />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" variant={editingPayment ? "default" : "success"}>
+            <Button 
+              type="submit" 
+              variant={editingPayment ? "default" : "success"}
+              disabled={editingPayment ? formData.status === editingPayment.status : false}
+            >
               {editingPayment ? t('common.save') : t('payments.addPayment')}
             </Button>
           </div>

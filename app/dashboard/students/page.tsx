@@ -207,6 +207,17 @@ export default function StudentsPage() {
                 .from('courses')
                 .update({ student_ids: updatedStudentIds })
                 .eq('id', classId)
+              
+              // Create student_class_lessons record if it doesn't exist
+              await supabase
+                .from('student_class_lessons')
+                .upsert({
+                  student_id: studentId,
+                  class_id: classId,
+                  lesson_count: 0
+                }, {
+                  onConflict: 'student_id,class_id'
+                })
             }
           }
         }
@@ -229,6 +240,17 @@ export default function StudentsPage() {
               .from('courses')
               .update({ student_ids: updatedStudentIds })
               .eq('id', classId)
+            
+            // Create student_class_lessons record if it doesn't exist
+            await supabase
+              .from('student_class_lessons')
+              .upsert({
+                student_id: newStudent.id,
+                class_id: classId,
+                lesson_count: 0
+              }, {
+                onConflict: 'student_id,class_id'
+              })
           }
         }
       }
@@ -1164,7 +1186,7 @@ export default function StudentsPage() {
                 if (error) throw error
                 
                 if (insertedStudents) {
-                  // Update classes with new student IDs
+                  // Update classes with new student IDs and create student_class_lessons records
                   for (const student of insertedStudents) {
                     importedStudentIds.push(student.id)
                     for (const classId of student.enrolled_class_ids || []) {
@@ -1175,6 +1197,17 @@ export default function StudentsPage() {
                           .from('courses')
                           .update({ student_ids: updatedStudentIds })
                           .eq('id', classId)
+                        
+                        // Create student_class_lessons record if it doesn't exist
+                        await supabase
+                          .from('student_class_lessons')
+                          .upsert({
+                            student_id: student.id,
+                            class_id: classId,
+                            lesson_count: 0
+                          }, {
+                            onConflict: 'student_id,class_id'
+                          })
                       }
                     }
                   }

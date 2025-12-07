@@ -526,12 +526,77 @@ export default function CoursesPage() {
 
       let courseId: string
       if (editingCourse) {
+        // Get old student_ids to compare
+        const oldStudentIds = editingCourse.student_ids || []
+        const newStudentIds = formData.student_ids || []
+        
+        // Find newly added students
+        const addedStudents = newStudentIds.filter(id => !oldStudentIds.includes(id))
+        // Find removed students
+        const removedStudents = oldStudentIds.filter(id => !newStudentIds.includes(id))
+        
+        // Update course
         const { error } = await supabase
           .from('courses')
           .update(submitData)
           .eq('id', editingCourse.id)
         if (error) throw error
         courseId = editingCourse.id
+        
+        // Update students' enrolled_class_ids and create student_class_lessons records
+        for (const studentId of addedStudents) {
+          // Get student's current enrolled_class_ids
+          const { data: student, error: studentError } = await supabase
+            .from('students')
+            .select('enrolled_class_ids')
+            .eq('id', studentId)
+            .single()
+          
+          if (!studentError && student) {
+            const currentEnrolled = student.enrolled_class_ids || []
+            if (!currentEnrolled.includes(courseId)) {
+              // Update student's enrolled_class_ids
+              await supabase
+                .from('students')
+                .update({
+                  enrolled_class_ids: [...currentEnrolled, courseId]
+                })
+                .eq('id', studentId)
+            }
+          }
+          
+          // Create student_class_lessons record if it doesn't exist
+          await supabase
+            .from('student_class_lessons')
+            .upsert({
+              student_id: studentId,
+              class_id: courseId,
+              lesson_count: 0
+            }, {
+              onConflict: 'student_id,class_id'
+            })
+        }
+        
+        // Remove course from students' enrolled_class_ids
+        for (const studentId of removedStudents) {
+          const { data: student, error: studentError } = await supabase
+            .from('students')
+            .select('enrolled_class_ids')
+            .eq('id', studentId)
+            .single()
+          
+          if (!studentError && student) {
+            const currentEnrolled = student.enrolled_class_ids || []
+            const updatedEnrolled = currentEnrolled.filter(id => id !== courseId)
+            
+            await supabase
+              .from('students')
+              .update({
+                enrolled_class_ids: updatedEnrolled
+              })
+              .eq('id', studentId)
+          }
+        }
       } else {
         const { data, error } = await supabase
           .from('courses')
@@ -570,6 +635,42 @@ export default function CoursesPage() {
           if (schedulesError) {
             console.error('Error creating schedules:', schedulesError)
             // Continue even if schedules fail - course is already created
+          }
+        }
+        
+        // For new course, update students' enrolled_class_ids and create student_class_lessons records
+        if (formData.student_ids && formData.student_ids.length > 0) {
+          for (const studentId of formData.student_ids) {
+            // Get student's current enrolled_class_ids
+            const { data: student, error: studentError } = await supabase
+              .from('students')
+              .select('enrolled_class_ids')
+              .eq('id', studentId)
+              .single()
+            
+            if (!studentError && student) {
+              const currentEnrolled = student.enrolled_class_ids || []
+              if (!currentEnrolled.includes(courseId)) {
+                // Update student's enrolled_class_ids
+                await supabase
+                  .from('students')
+                  .update({
+                    enrolled_class_ids: [...currentEnrolled, courseId]
+                  })
+                  .eq('id', studentId)
+              }
+            }
+            
+            // Create student_class_lessons record if it doesn't exist
+            await supabase
+              .from('student_class_lessons')
+              .upsert({
+                student_id: studentId,
+                class_id: courseId,
+                lesson_count: 0
+              }, {
+                onConflict: 'student_id,class_id'
+              })
           }
         }
       }
