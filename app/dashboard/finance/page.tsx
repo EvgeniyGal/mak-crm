@@ -172,76 +172,18 @@ export default function FinancePage() {
 
       if (salariesError) throw salariesError
 
-      // Calculate initial balance (balance from previous days in the week)
-      // If user has set initialBalance, we'll use it for the first date's balanceAsOfStartDay
-      // Otherwise, calculate from previous days
-      const firstDate = new Date(startDate)
-      const dayOfWeek = firstDate.getDay()
-      // Monday is day 1, but getDay() returns 0 for Sunday, 1 for Monday, etc.
-      const isMonday = dayOfWeek === 1
-
+      // For the first date in the range, balanceAsOfStartDay should be 0 (or user-provided value)
+      // Don't recalculate from previous days - always start fresh for the first date
       let initialBalanceCash = 0
       let initialBalanceCard = 0
 
-      // Only calculate from previous days if user hasn't set initialBalance
-      if (currentInitialBalance === 0 && !isMonday) {
-        // Get previous days in the week (from Monday of current week to start date)
-        const weekStart = new Date(firstDate)
-        weekStart.setDate(firstDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-        weekStart.setHours(0, 0, 0, 0)
-        const weekEnd = new Date(firstDate)
-        weekEnd.setHours(0, 0, 0, 0)
-
-        // Fetch previous payments
-        const { data: prevPayments } = await supabase
-          .from('payments')
-          .select('type, package_types(amount), created_at, updated_at, status')
-          .eq('status', 'paid')
-          .gte('updated_at', weekStart.toISOString())
-          .lt('updated_at', weekEnd.toISOString())
-
-        // Fetch previous expenditures
-        const { data: prevExpenditures } = await supabase
-          .from('expenditures')
-          .select('amount, payment_type, created_at')
-          .gte('created_at', weekStart.toISOString())
-          .lt('created_at', weekEnd.toISOString())
-
-        // Fetch previous salaries
-        const { data: prevSalaries } = await supabase
-          .from('teacher_salaries')
-          .select('amount, payment_type, created_at')
-          .gte('created_at', weekStart.toISOString())
-          .lt('created_at', weekEnd.toISOString())
-
-        // Calculate previous balances
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        prevPayments?.forEach((payment: any) => {
-          const amount = payment.package_types?.amount || 0
-          if (payment.type === 'cash') {
-            initialBalanceCash += amount
-          } else if (payment.type === 'card') {
-            initialBalanceCard += amount
-          }
-        })
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        prevExpenditures?.forEach((expenditure: any) => {
-          if (expenditure.payment_type === 'cash') {
-            initialBalanceCash -= expenditure.amount
-          } else if (expenditure.payment_type === 'card') {
-            initialBalanceCard -= expenditure.amount
-          }
-        })
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        prevSalaries?.forEach((salary: any) => {
-          if (salary.payment_type === 'cash') {
-            initialBalanceCash -= salary.amount
-          } else if (salary.payment_type === 'card') {
-            initialBalanceCard -= salary.amount
-          }
-        })
+      // If user has provided an initial balance, distribute it proportionally
+      // Otherwise, start with 0 for both cash and card
+      if (currentInitialBalance !== 0) {
+        // User provided initial balance - put it all in cash by default
+        // (or we could distribute it, but for simplicity, put it in cash)
+        initialBalanceCash = currentInitialBalance
+        initialBalanceCard = 0
       }
 
       // Now calculate data for each date in the range (for display)
@@ -320,22 +262,18 @@ export default function FinancePage() {
         })
 
         // Store balance before adding today's transactions (this is the balance as of start of day)
-        // For the first date, use user-provided initial balance if set (non-zero)
-        let balanceAsOfStartDay = runningBalanceCash + runningBalanceCard
-        if (isFirstDateInRange && currentInitialBalance !== 0) {
+        // For the first date in range, always use 0 (or user-provided initial balance if set)
+        // Don't recalculate from previous days
+        let balanceAsOfStartDay = 0
+        if (isFirstDateInRange) {
+          // For the first date, use user-provided initial balance if set, otherwise 0
           balanceAsOfStartDay = currentInitialBalance
-          // Adjust running balances to match the user-provided initial balance
-          // We'll distribute proportionally if we have calculated balances, otherwise put it all in cash
-          const calculatedTotal = initialBalanceCash + initialBalanceCard
-          if (calculatedTotal > 0) {
-            const ratio = currentInitialBalance / calculatedTotal
-            runningBalanceCash = initialBalanceCash * ratio
-            runningBalanceCard = initialBalanceCard * ratio
-          } else {
-            // If no calculated balance, put it all in cash
-            runningBalanceCash = currentInitialBalance
-            runningBalanceCard = 0
-          }
+          // Set running balances to match the initial balance
+          runningBalanceCash = initialBalanceCash
+          runningBalanceCard = initialBalanceCard
+        } else {
+          // For subsequent dates, use the running balance from previous day
+          balanceAsOfStartDay = runningBalanceCash + runningBalanceCard
         }
 
         // Calculate balances after today's transactions
