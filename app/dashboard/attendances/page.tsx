@@ -705,11 +705,13 @@ export default function AttendancesPage() {
             className="w-48"
           >
             <option value="all">{t('common.all')} {t('courses.title')}</option>
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name}
-              </option>
-            ))}
+            {classes
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name}
+                </option>
+              ))}
           </Select>
         </div>
         <div className="flex gap-4">
@@ -887,11 +889,13 @@ export default function AttendancesPage() {
                 required
               >
                 <option value="">Вибрати курс</option>
-                {classes.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </option>
-                ))}
+                {classes
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
+                  ))}
               </Select>
             </div>
             <div>

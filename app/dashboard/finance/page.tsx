@@ -74,8 +74,14 @@ export default function FinancePage() {
     const todayMonth = String(today.getMonth() + 1).padStart(2, '0')
     const todayDay = String(today.getDate()).padStart(2, '0')
 
-    setDateRangeStart(`${year}-${month}-${day}`)
-    setDateRangeEnd(`${todayYear}-${todayMonth}-${todayDay}`)
+    const startDate = `${year}-${month}-${day}`
+    const endDate = `${todayYear}-${todayMonth}-${todayDay}`
+    
+    setDateRangeStart(startDate)
+    setDateRangeEnd(endDate)
+    // Update debounced values immediately to trigger data fetch
+    setDebouncedDateStart(startDate)
+    setDebouncedDateEnd(endDate)
   }
 
   const getCurrentMonth = () => {
@@ -89,8 +95,14 @@ export default function FinancePage() {
     const todayMonth = String(today.getMonth() + 1).padStart(2, '0')
     const todayDay = String(today.getDate()).padStart(2, '0')
 
-    setDateRangeStart(`${year}-${month}-${day}`)
-    setDateRangeEnd(`${todayYear}-${todayMonth}-${todayDay}`)
+    const startDate = `${year}-${month}-${day}`
+    const endDate = `${todayYear}-${todayMonth}-${todayDay}`
+    
+    setDateRangeStart(startDate)
+    setDateRangeEnd(endDate)
+    // Update debounced values immediately to trigger data fetch
+    setDebouncedDateStart(startDate)
+    setDebouncedDateEnd(endDate)
   }
 
   const fetchFinanceData = useCallback(async () => {
@@ -361,17 +373,15 @@ export default function FinancePage() {
 
   // On initial mount, set debounced values immediately (no delay)
   useEffect(() => {
-    if (isInitialMount.current) {
+    if (isInitialMount.current && dateRangeStart && dateRangeEnd) {
       // Initial load - set immediately without debounce
-      if (dateRangeStart && dateRangeEnd) {
-        setDebouncedDateStart(dateRangeStart)
-        setDebouncedDateEnd(dateRangeEnd)
-        setDebouncedInitialBalance(initialBalance)
-        isInitialMount.current = false
-      }
+      setDebouncedDateStart(dateRangeStart)
+      setDebouncedDateEnd(dateRangeEnd)
+      setDebouncedInitialBalance(initialBalance)
+      isInitialMount.current = false
     }
     // Note: Date fields now update on blur only via onBlur handlers, not via this useEffect
-  }, []) // Empty dependency array - only run on mount
+  }, [dateRangeStart, dateRangeEnd, initialBalance]) // Depend on date ranges so it runs when they're set
 
   // Debounce initial balance changes - wait 1 second after user stops typing
   useEffect(() => {
