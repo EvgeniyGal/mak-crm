@@ -373,6 +373,7 @@
     "packageType": "Package Type",
     "selectPackageType": "Select Package Type",
     "selectClassFirst": "Please select a class first",
+    "noStudentsInCourse": "No students enrolled in this course",
     "amount": "Amount",
     "paymentType": "Payment Type",
     "type": "Type",

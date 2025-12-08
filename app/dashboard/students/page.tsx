@@ -598,10 +598,18 @@ export default function StudentsPage() {
             className="w-48"
           >
             <option value="all">{t('students.allStatuses')}</option>
-            <option value="active">{t('common.active')}</option>
-            <option value="inactive">{t('common.inactive')}</option>
-            <option value="moved">{t('common.moved')}</option>
-            <option value="don't disturb">{t('common.dontDisturb')}</option>
+            {[
+              { value: 'active', label: t('common.active') },
+              { value: 'inactive', label: t('common.inactive') },
+              { value: 'moved', label: t('common.moved') },
+              { value: "don't disturb", label: t('common.dontDisturb') },
+            ]
+              .sort((a, b) => a.label.localeCompare(b.label, 'uk'))
+              .map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
           </Select>
           <Select
             value={courseFilter}
@@ -609,11 +617,14 @@ export default function StudentsPage() {
             className="w-48"
           >
             <option value="all">{t('common.all')} {t('dashboard.classes')}</option>
-            {classes.filter(cls => cls.status === 'active').map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name}
-              </option>
-            ))}
+            {classes
+              .filter(cls => cls.status === 'active')
+              .sort((a, b) => a.name.localeCompare(b.name, 'uk'))
+              .map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name}
+                </option>
+              ))}
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-4">

@@ -372,6 +372,7 @@
     "packageType": "Тип пакету",
     "selectPackageType": "Вибрати тип пакету",
     "selectClassFirst": "Спочатку виберіть клас",
+    "noStudentsInCourse": "Немає студентів, зарахованих на цей курс",
     "amount": "Сума",
     "paymentType": "Тип платежу",
     "type": "Тип",

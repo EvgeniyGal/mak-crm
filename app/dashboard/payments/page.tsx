@@ -32,6 +32,7 @@ interface Student {
   id: string
   student_first_name: string
   student_last_name: string
+  enrolled_class_ids?: string[]
 }
 
 interface Class {
@@ -106,7 +107,7 @@ export default function PaymentsPage() {
     try {
       const { data, error } = await supabase
         .from('students')
-        .select('id, student_first_name, student_last_name')
+        .select('id, student_first_name, student_last_name, enrolled_class_ids')
         .eq('status', 'active')
 
       if (error) throw error
@@ -154,6 +155,7 @@ export default function PaymentsPage() {
     setFormData({
       ...formData,
       class_id: classId,
+      student_id: '', // Reset student when class changes
       package_type_id: '', // Reset package type when class changes
     })
   }
@@ -371,6 +373,17 @@ export default function PaymentsPage() {
     ? packageTypes.filter(pt => pt.class_id === formData.class_id)
     : []
 
+  // Filter students by selected course
+  // When editing, include the current student even if not in filtered list
+  const availableStudents = formData.class_id
+    ? students.filter(student => {
+        const isEnrolled = student.enrolled_class_ids && 
+          student.enrolled_class_ids.includes(formData.class_id)
+        const isCurrentStudent = editingPayment && student.id === formData.student_id
+        return isEnrolled || isCurrentStudent
+      })
+    : []
+
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
       { header: t('payments.student'), accessor: (row) => `${row.students?.student_first_name || ''} ${row.students?.student_last_name || ''}`.trim() },
@@ -459,11 +472,14 @@ export default function PaymentsPage() {
             className="w-48"
           >
             <option value="all">{t('common.all')} {t('payments.courses')}</option>
-            {classes.filter(cls => cls.status === 'active').map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name}
-              </option>
-            ))}
+            {classes
+              .filter(cls => cls.status === 'active')
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name}
+                </option>
+              ))}
           </Select>
         </div>
         <div className="flex gap-4 flex-wrap items-end">
@@ -660,22 +676,6 @@ export default function PaymentsPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.student')} *</label>
-            <Select
-              value={formData.student_id}
-              onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
-              required
-              disabled={!!editingPayment}
-            >
-              <option value="">{t('common.selectStudent')}</option>
-              {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.student_first_name} {student.student_last_name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.class')} *</label>
             <Select
               value={formData.class_id}
@@ -684,12 +684,50 @@ export default function PaymentsPage() {
               disabled={!!editingPayment}
             >
               <option value="">{t('common.selectClass')}</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={cls.id}>
-                  {cls.name}
-                </option>
-              ))}
+              {classes
+                .filter(cls => {
+                  // When editing, include the current class even if inactive
+                  if (editingPayment && cls.id === formData.class_id) {
+                    return true
+                  }
+                  // Otherwise, only show active classes
+                  return cls.status === 'active'
+                })
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))}
             </Select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.student')} *</label>
+            <Select
+              value={formData.student_id}
+              onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+              required
+              disabled={!!editingPayment || !formData.class_id}
+            >
+              <option value="">{t('common.selectStudent')}</option>
+              {availableStudents
+                .sort((a, b) => {
+                  const nameA = `${a.student_first_name} ${a.student_last_name}`.toLowerCase()
+                  const nameB = `${b.student_first_name} ${b.student_last_name}`.toLowerCase()
+                  return nameA.localeCompare(nameB)
+                })
+                .map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.student_first_name} {student.student_last_name}
+                  </option>
+                ))}
+            </Select>
+            {!formData.class_id && (
+              <p className="mt-1 text-sm text-gray-500">{t('payments.selectClassFirst')}</p>
+            )}
+            {formData.class_id && availableStudents.length === 0 && (
+              <p className="mt-1 text-sm text-yellow-600">{t('payments.noStudentsInCourse')}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.packageType')} *</label>
@@ -700,11 +738,13 @@ export default function PaymentsPage() {
               disabled={!formData.class_id || !!editingPayment}
             >
               <option value="">{t('common.selectPackageType')}</option>
-              {availablePackageTypes.map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {pt.name} ({pt.lesson_count} {t('common.lessons')}, {pt.amount} {t('common.uah')})
-                </option>
-              ))}
+              {availablePackageTypes
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((pt) => (
+                  <option key={pt.id} value={pt.id}>
+                    {pt.name} ({pt.lesson_count} {t('common.lessons')}, {pt.amount} {t('common.uah')})
+                  </option>
+                ))}
             </Select>
             {!formData.class_id && (
               <p className="mt-1 text-sm text-gray-500">{t('payments.selectClassFirst')}</p>
