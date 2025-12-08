@@ -83,7 +83,6 @@ export default function AttendancesPage() {
     date: '',
     class_id: '',
   })
-  const [courseSchedules, setCourseSchedules] = useState<Array<{ id: string; week_day: number; time_slot: string }>>([])
   const [availableDates, setAvailableDates] = useState<Array<{ value: string; label: string }>>([])
 
   const fetchAttendances = useCallback(async () => {
@@ -349,7 +348,6 @@ export default function AttendancesPage() {
       
       if (schedulesError) throw schedulesError
       const schedules = schedulesData || []
-      setCourseSchedules(schedules)
       
       // Fetch existing attendances for this class to exclude those dates
       const today = new Date()
@@ -378,7 +376,6 @@ export default function AttendancesPage() {
       setAvailableDates(dates)
     } catch (error) {
       console.error('Error fetching course schedules:', error)
-      setCourseSchedules([])
       setAvailableDates([])
     }
   }
@@ -387,7 +384,6 @@ export default function AttendancesPage() {
     const selectedClass = classes.find(c => c.id === classId)
     if (!selectedClass) {
       setSelectedClassStudents([])
-      setCourseSchedules([])
       setAvailableDates([])
       setFormData({ ...formData, date: '' })
       return
@@ -477,7 +473,7 @@ export default function AttendancesPage() {
 
       // Create student presences and update student_class_lessons
       for (const [studentId, presence] of Object.entries(studentPresences)) {
-        const { data: presenceData, error: presenceError } = await supabase
+        const { error: presenceError } = await supabase
           .from('student_presences')
           .insert({
             student_id: studentId,
@@ -586,7 +582,6 @@ export default function AttendancesPage() {
     setEditingAttendance(null)
     setSelectedClassStudents([])
     setStudentPresences({})
-    setCourseSchedules([])
     setAvailableDates([])
   }
 
@@ -1121,7 +1116,7 @@ export default function AttendancesPage() {
               
               // Verify the object doesn't have available_lesson_count
               if ('available_lesson_count' in paymentData) {
-                delete (paymentData as any).available_lesson_count
+                delete (paymentData as Record<string, unknown>).available_lesson_count
               }
               
               console.log('Creating payment with clean data:', paymentData)

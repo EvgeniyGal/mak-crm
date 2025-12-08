@@ -587,7 +587,7 @@ export default function CoursesPage() {
           
           if (!studentError && student) {
             const currentEnrolled = student.enrolled_class_ids || []
-            const updatedEnrolled = currentEnrolled.filter(id => id !== courseId)
+            const updatedEnrolled = currentEnrolled.filter((id: string) => id !== courseId)
             
             await supabase
               .from('students')

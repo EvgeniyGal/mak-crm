@@ -918,7 +918,7 @@ export default function SchedulesPage() {
 
       // Create student presences and update student_class_lessons
       for (const [studentId, presence] of Object.entries(studentPresences)) {
-        const { data: presenceData, error: presenceError } = await supabase
+        const { error: presenceError } = await supabase
           .from('student_presences')
           .insert({
             student_id: studentId,
@@ -2033,7 +2033,7 @@ export default function SchedulesPage() {
               
               // Verify the object doesn't have available_lesson_count
               if ('available_lesson_count' in paymentData) {
-                delete (paymentData as any).available_lesson_count
+                delete (paymentData as Record<string, unknown>).available_lesson_count
               }
               
               console.log('Creating payment with clean data:', paymentData)
