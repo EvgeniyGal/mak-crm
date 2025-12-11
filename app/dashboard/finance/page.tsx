@@ -232,7 +232,8 @@ export default function FinancePage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dayPayments.forEach((payment: any) => {
           const amount = payment.package_types?.amount || 0
-          if (payment.type === 'cash') {
+          if (payment.type === 'cash' || payment.type === 'free') {
+            // Add 'free' (Безплатне/Тестове) to cash (Готівка)
             incomesCash += amount
           } else if (payment.type === 'card') {
             incomesCard += amount
