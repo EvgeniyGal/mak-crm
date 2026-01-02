@@ -86,13 +86,31 @@ export default function StudentsPage() {
 
   const fetchStudents = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('created_at', { ascending: false })
+      let allStudents: Student[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setStudents(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allStudents = [...allStudents, ...data]
+          // If we got less than batchSize, we've reached the end
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setStudents(allStudents)
     } catch (error) {
       console.error('Error fetching students:', error)
     } finally {
