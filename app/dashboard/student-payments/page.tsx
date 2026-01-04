@@ -70,13 +70,30 @@ export default function StudentPaymentsPage() {
     setLoading(true)
     try {
       // Get all active students
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('id, student_first_name, student_last_name')
-        .eq('status', 'active')
+      let allStudents: Array<{ id: string; student_first_name: string; student_last_name: string }> = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (studentsError) throw studentsError
-      setStudents(students || [])
+      while (hasMore) {
+        const { data, error: studentsError } = await supabase
+          .from('students')
+          .select('id, student_first_name, student_last_name')
+          .eq('status', 'active')
+          .range(from, from + batchSize - 1)
+
+        if (studentsError) throw studentsError
+
+        if (data && data.length > 0) {
+          allStudents = [...allStudents, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setStudents(allStudents)
 
       // Get package types for filtering
       const { data: packages, error: packagesError } = await supabase

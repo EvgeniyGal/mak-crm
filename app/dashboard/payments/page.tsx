@@ -84,18 +84,35 @@ export default function PaymentsPage() {
 
   const fetchPayments = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select(`
-          *,
-          students(student_first_name, student_last_name),
-          courses!class_id(name),
-          package_types(name, amount, lesson_count)
-        `)
-        .order('created_at', { ascending: false })
+      let allPayments: Payment[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setPayments(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('payments')
+          .select(`
+            *,
+            students(student_first_name, student_last_name),
+            courses!class_id(name),
+            package_types(name, amount, lesson_count)
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allPayments = [...allPayments, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setPayments(allPayments)
     } catch (error) {
       console.error('Error fetching payments:', error)
     } finally {
@@ -105,13 +122,30 @@ export default function PaymentsPage() {
 
   const fetchStudents = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, student_first_name, student_last_name, enrolled_class_ids')
-        .eq('status', 'active')
+      let allStudents: Array<{ id: string; student_first_name: string; student_last_name: string; enrolled_class_ids: string[] }> = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setStudents(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, student_first_name, student_last_name, enrolled_class_ids')
+          .eq('status', 'active')
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allStudents = [...allStudents, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setStudents(allStudents)
     } catch (error) {
       console.error('Error fetching students:', error)
     }

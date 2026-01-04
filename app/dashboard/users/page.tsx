@@ -72,13 +72,30 @@ export default function UsersPage() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false })
+      let allUsers: User[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setUsers(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allUsers = [...allUsers, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setUsers(allUsers)
     } catch (error) {
       console.error('Error fetching users:', error)
     } finally {

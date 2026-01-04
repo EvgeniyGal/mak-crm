@@ -78,21 +78,70 @@ export default function DashboardPage() {
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
       
-      const { data: activeStudents } = await supabase
-        .from('students')
-        .select('id, student_first_name, student_last_name, parent_first_name, parent_middle_name, phone, enrolled_class_ids')
-        .eq('status', 'active')
-        .not('enrolled_class_ids', 'is', null)
+      // Get all active students with enrolled classes
+      let allActiveStudents: Array<{
+        id: string
+        student_first_name: string
+        student_last_name: string
+        parent_first_name: string
+        parent_middle_name: string | null
+        phone: string
+        enrolled_class_ids: string[]
+      }> = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, student_first_name, student_last_name, parent_first_name, parent_middle_name, phone, enrolled_class_ids')
+          .eq('status', 'active')
+          .not('enrolled_class_ids', 'is', null)
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allActiveStudents = [...allActiveStudents, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const activeStudents = allActiveStudents
 
       const { data: classesData } = await supabase
         .from('courses')
         .select('id, name')
 
-      const { data: attendancesData } = await supabase
-        .from('attendances')
-        .select('id, date, class_id')
-        .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
-        .order('date', { ascending: false })
+      // Get all attendances in date range
+      let allAttendances: Array<{ id: string; date: string; class_id: string }> = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('attendances')
+          .select('id, date, class_id')
+          .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+          .order('date', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allAttendances = [...allAttendances, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const attendancesData = allAttendances
 
       const attendanceIds = attendancesData?.map(a => a.id) || []
       
@@ -180,10 +229,35 @@ export default function DashboardPage() {
       const nextWeek = new Date(today)
       nextWeek.setDate(nextWeek.getDate() + 7)
 
-      const { data: studentsData } = await supabase
-        .from('students')
-        .select('id, student_first_name, student_last_name, student_date_of_birth')
-        .eq('status', 'active')
+      // Get all active students for birthdays
+      let allStudentsData: Array<{
+        id: string
+        student_first_name: string
+        student_last_name: string
+        student_date_of_birth: string | null
+      }> = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, student_first_name, student_last_name, student_date_of_birth')
+          .eq('status', 'active')
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allStudentsData = [...allStudentsData, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const studentsData = allStudentsData
 
       const { data: teachersData } = await supabase
         .from('teachers')

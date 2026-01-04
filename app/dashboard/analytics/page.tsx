@@ -99,10 +99,30 @@ export default function AnalyticsPage() {
       }
 
       // Get active students
-      const { data: activeStudents } = await supabase
-        .from('students')
-        .select('id, created_at')
-        .eq('status', 'active')
+      let allActiveStudents: Array<{ id: string; created_at: string }> = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, created_at')
+          .eq('status', 'active')
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allActiveStudents = [...allActiveStudents, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const activeStudents = allActiveStudents
 
       // Get new students
       const newStudentsWeek = activeStudents?.filter(s => {
@@ -120,27 +140,73 @@ export default function AnalyticsPage() {
       }).length || 0
 
       // Get attendance data
-      const { data: attendances } = await supabase
-        .from('attendances')
-        .select('id, class_id')
-        .gte('date', startDate.toISOString().split('T')[0])
+      let allAttendances: Array<{ id: string; class_id: string }> = []
+      from = 0
+      hasMore = true
 
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('attendances')
+          .select('id, class_id')
+          .gte('date', startDate.toISOString().split('T')[0])
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allAttendances = [...allAttendances, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const attendances = allAttendances
       const attendanceIds = attendances?.map(a => a.id) || []
 
-      const { data: presences } = await supabase
-        .from('student_presences')
-        .select('status, attendance_id')
-        .in('attendance_id', attendanceIds.length > 0 ? attendanceIds : [''])
+      // Fetch presences in batches if needed (for large arrays, we might need to batch the .in() query)
+      let allPresences: Array<{ status: string; attendance_id: string }> = []
+      if (attendanceIds.length > 0) {
+        // Supabase .in() can handle arrays, but if it's very large we might need batching
+        // For now, fetch all at once since .in() should handle reasonable sizes
+        const { data: presences, error } = await supabase
+          .from('student_presences')
+          .select('status, attendance_id')
+          .in('attendance_id', attendanceIds)
 
-      const totalPresences = presences?.length || 0
-      const presentCount = presences?.filter(p => p.status === 'present').length || 0
+        if (error) throw error
+        allPresences = presences || []
+      }
+
+      const totalPresences = allPresences?.length || 0
+      const presentCount = allPresences?.filter(p => p.status === 'present').length || 0
       const overallAttendanceRate = totalPresences > 0 ? (presentCount / totalPresences) * 100 : 0
 
       // Get payment data
-      const { data: payments } = await supabase
-        .from('payments')
-        .select('status, type')
-        .gte('created_at', startDate.toISOString())
+      let allPayments: Array<{ status: string; type: string }> = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('payments')
+          .select('status, type')
+          .gte('created_at', startDate.toISOString())
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allPayments = [...allPayments, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const payments = allPayments
 
       const totalPayments = payments?.length || 0
       const paidPayments = payments?.filter(p => p.status === 'paid').length || 0
@@ -154,15 +220,53 @@ export default function AnalyticsPage() {
       ]
 
       // Get expenditures and salaries
-      const { data: expenditures } = await supabase
-        .from('expenditures')
-        .select('amount')
-        .gte('created_at', startDate.toISOString())
+      let allExpenditures: Array<{ amount: number }> = []
+      from = 0
+      hasMore = true
 
-      const { data: salaries } = await supabase
-        .from('teacher_salaries')
-        .select('amount')
-        .gte('created_at', startDate.toISOString())
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('expenditures')
+          .select('amount')
+          .gte('created_at', startDate.toISOString())
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allExpenditures = [...allExpenditures, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const expenditures = allExpenditures
+
+      let allSalaries: Array<{ amount: number }> = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('teacher_salaries')
+          .select('amount')
+          .gte('created_at', startDate.toISOString())
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allSalaries = [...allSalaries, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const salaries = allSalaries
 
       const totalExpenditures = expenditures?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
       const totalSalaries = salaries?.reduce((sum, s) => sum + parseFloat(s.amount.toString()), 0) || 0
@@ -201,7 +305,7 @@ export default function AnalyticsPage() {
           const classAttendances = attendances.filter(a => a.class_id === cls.id)
           const classAttendanceIds = classAttendances.map(a => a.id)
           
-          const classPresences = presences?.filter(p => classAttendanceIds.includes(p.attendance_id)) || []
+          const classPresences = allPresences?.filter(p => classAttendanceIds.includes(p.attendance_id)) || []
           const classPresentCount = classPresences.filter(p => p.status === 'present').length
           const rate = classPresences.length > 0 ? (classPresentCount / classPresences.length) * 100 : 0
 

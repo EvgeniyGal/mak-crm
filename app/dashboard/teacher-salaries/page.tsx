@@ -55,13 +55,30 @@ export default function TeacherSalariesPage() {
 
   const fetchSalaries = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('teacher_salaries')
-        .select('*')
-        .order('created_at', { ascending: false })
+      let allSalaries: TeacherSalary[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setSalaries(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('teacher_salaries')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allSalaries = [...allSalaries, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setSalaries(allSalaries)
     } catch (error) {
       console.error('Error fetching salaries:', error)
     } finally {

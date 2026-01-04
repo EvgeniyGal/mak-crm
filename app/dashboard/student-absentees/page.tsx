@@ -94,12 +94,30 @@ export default function StudentAbsenteesPage() {
     setLoading(true)
     try {
       // Get all active students
-      const { data: activeStudents, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('status', 'active')
+      let allActiveStudents: Student[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (studentsError) throw studentsError
+      while (hasMore) {
+        const { data, error: studentsError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('status', 'active')
+          .range(from, from + batchSize - 1)
+
+        if (studentsError) throw studentsError
+
+        if (data && data.length > 0) {
+          allActiveStudents = [...allActiveStudents, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      const activeStudents = allActiveStudents
 
       if (!activeStudents) {
         setStudents([])

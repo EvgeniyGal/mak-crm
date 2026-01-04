@@ -51,13 +51,30 @@ export default function ExpendituresPage() {
 
   const fetchExpenditures = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('expenditures')
-        .select('*')
-        .order('created_at', { ascending: false })
+      let allExpenditures: Expenditure[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setExpenditures(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('expenditures')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allExpenditures = [...allExpenditures, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setExpenditures(allExpenditures)
     } catch (error) {
       console.error('Error fetching expenditures:', error)
     } finally {

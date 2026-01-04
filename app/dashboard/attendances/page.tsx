@@ -87,13 +87,30 @@ export default function AttendancesPage() {
 
   const fetchAttendances = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('attendances')
-        .select('*')
-        .order('date', { ascending: false })
+      let allAttendances: Attendance[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setAttendances(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('attendances')
+          .select('*')
+          .order('date', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allAttendances = [...allAttendances, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setAttendances(allAttendances)
     } catch (error) {
       console.error('Error fetching attendances:', error)
     } finally {
@@ -117,12 +134,29 @@ export default function AttendancesPage() {
 
   const fetchStudents = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, student_first_name, student_last_name')
+      let allStudents: Array<{ id: string; student_first_name: string; student_last_name: string }> = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setStudents(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, student_first_name, student_last_name')
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allStudents = [...allStudents, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setStudents(allStudents)
     } catch (error) {
       console.error('Error fetching students:', error)
     }
