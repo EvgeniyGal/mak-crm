@@ -395,7 +395,10 @@
     "sortByCourse": "Course",
     "courses": "Courses",
     "updatedFrom": "Updated From",
-    "updatedTo": "Updated To"
+    "updatedTo": "Updated To",
+    "paymentDate": "Payment Date",
+    "paymentDateHint": "Change the payment date to adjust when it appears in the finance section",
+    "paymentTypeChangeHint": "Payment type can only be changed when changing status from pending to paid"
   },
   "studentPayments": {
     "title": "Student Payments",

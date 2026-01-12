@@ -33,6 +33,13 @@ interface Student {
   student_first_name: string
   student_last_name: string
   enrolled_class_ids?: string[]
+  parent_first_name?: string
+  parent_middle_name?: string
+  phone?: string
+  email?: string
+  student_date_of_birth?: string
+  status?: string
+  comment?: string
 }
 
 interface Class {
@@ -72,6 +79,10 @@ export default function PaymentsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [studentPayments, setStudentPayments] = useState<Payment[]>([])
+  const [loadingStudentDetails, setLoadingStudentDetails] = useState(false)
 
   const [formData, setFormData] = useState({
     student_id: '',
@@ -80,6 +91,7 @@ export default function PaymentsPage() {
     status: 'pending',
     type: 'cash',
     comment: '',
+    payment_date: '',
   })
 
   const fetchPayments = useCallback(async () => {
@@ -205,9 +217,35 @@ export default function PaymentsPage() {
     e.preventDefault()
     try {
       if (editingPayment) {
+        const updateData: {
+          status: string
+          comment?: string
+          type?: string
+          created_at?: string
+          updated_at?: string
+        } = {
+          status: formData.status,
+          comment: formData.comment,
+        }
+
+        // Only allow type change when changing status from pending to paid
+        const isChangingToPaid = editingPayment.status === 'pending' && formData.status === 'paid'
+        if (isChangingToPaid) {
+          updateData.type = formData.type
+        }
+
+        // Update payment date (created_at and updated_at) if provided
+        if (formData.payment_date) {
+          const paymentDate = new Date(formData.payment_date)
+          paymentDate.setHours(12, 0, 0, 0) // Set to noon to avoid timezone issues
+          const dateISO = paymentDate.toISOString()
+          updateData.created_at = dateISO
+          updateData.updated_at = dateISO // Set both dates to the selected date
+        }
+
         const { error } = await supabase
           .from('payments')
-          .update(formData)
+          .update(updateData)
           .eq('id', editingPayment.id)
         if (error) throw error
       } else {
@@ -271,6 +309,8 @@ export default function PaymentsPage() {
 
   const handleEdit = (payment: Payment) => {
     setEditingPayment(payment)
+    // Format payment date for date input (YYYY-MM-DD)
+    const paymentDate = payment.created_at ? new Date(payment.created_at).toISOString().split('T')[0] : ''
     setFormData({
       student_id: payment.student_id,
       class_id: payment.class_id,
@@ -278,6 +318,7 @@ export default function PaymentsPage() {
       status: payment.status,
       type: payment.type,
       comment: payment.comment || '',
+      payment_date: paymentDate,
     })
     setIsModalOpen(true)
   }
@@ -306,6 +347,7 @@ export default function PaymentsPage() {
       status: 'pending',
       type: 'cash',
       comment: '',
+      payment_date: '',
     })
     setEditingPayment(null)
   }
@@ -444,6 +486,65 @@ export default function PaymentsPage() {
       { header: t('payments.comment'), accessor: (row) => row.comment || '' },
     ]
     exportToCSV(sortedPayments, columns, 'payments')
+  }
+
+  const fetchStudentDetails = async (studentId: string) => {
+    setLoadingStudentDetails(true)
+    try {
+      // Fetch student details
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', studentId)
+        .single()
+
+      if (studentError) throw studentError
+      if (studentData) {
+        setSelectedStudent(studentData as Student)
+      }
+
+      // Fetch all payments for this student
+      let allStudentPayments: Payment[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('payments')
+          .select(`
+            *,
+            students(student_first_name, student_last_name),
+            courses!class_id(name),
+            package_types(name, amount, lesson_count)
+          `)
+          .eq('student_id', studentId)
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allStudentPayments = [...allStudentPayments, ...data]
+          hasMore = data.length === batchSize
+          from += batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setStudentPayments(allStudentPayments)
+    } catch (error) {
+      console.error('Error fetching student details:', error)
+      alert(t('common.errorSaving'))
+    } finally {
+      setLoadingStudentDetails(false)
+    }
+  }
+
+  const handleStudentClick = async (studentId: string) => {
+    setIsStudentModalOpen(true)
+    await fetchStudentDetails(studentId)
   }
 
   if (loading) {
@@ -610,7 +711,14 @@ export default function PaymentsPage() {
               {paginatedPayments.map((payment) => (
                 <tr key={payment.id}>
                   <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
-                    {payment.students ? `${payment.students.student_first_name} ${payment.students.student_last_name}` : '-'}
+                    {payment.students ? (
+                      <button
+                        onClick={() => handleStudentClick(payment.student_id)}
+                        className="text-blue-600 hover:text-blue-900 hover:underline cursor-pointer"
+                      >
+                        {payment.students.student_first_name} {payment.students.student_last_name}
+                      </button>
+                    ) : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {payment.courses?.name || '-'}
@@ -802,14 +910,28 @@ export default function PaymentsPage() {
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 required
-                disabled={!!editingPayment}
+                disabled={!!editingPayment && !(editingPayment.status === 'pending' && formData.status === 'paid')}
               >
                 <option value="cash">{t('payments.cash')}</option>
                 <option value="card">{t('payments.card')}</option>
                 <option value="free">{t('payments.free')}</option>
               </Select>
+              {editingPayment && editingPayment.status === 'pending' && formData.status !== 'paid' && (
+                <p className="mt-1 text-sm text-gray-500">{t('payments.paymentTypeChangeHint')}</p>
+              )}
             </div>
           </div>
+          {editingPayment && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.paymentDate')}</label>
+              <Input
+                type="date"
+                value={formData.payment_date}
+                onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
+                className="w-full"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.comment')}</label>
             <textarea
@@ -828,12 +950,129 @@ export default function PaymentsPage() {
             <Button 
               type="submit" 
               variant={editingPayment ? "default" : "success"}
-              disabled={editingPayment ? formData.status === editingPayment.status : false}
+              disabled={editingPayment ? (() => {
+                const statusChanged = formData.status !== editingPayment.status
+                const commentChanged = formData.comment !== (editingPayment.comment || '')
+                const originalDate = editingPayment.created_at ? new Date(editingPayment.created_at).toISOString().split('T')[0] : ''
+                const dateChanged = formData.payment_date && formData.payment_date !== originalDate
+                const typeChanged = editingPayment.status === 'pending' && formData.status === 'paid' && formData.type !== editingPayment.type
+                // Button is enabled if any field changed
+                return !statusChanged && !commentChanged && !dateChanged && !typeChanged
+              })() : false}
             >
               {editingPayment ? t('common.save') : t('payments.addPayment')}
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Student Details Modal */}
+      <Modal
+        isOpen={isStudentModalOpen}
+        onClose={() => { setIsStudentModalOpen(false); setSelectedStudent(null); setStudentPayments([]) }}
+        title={selectedStudent ? `${selectedStudent.student_first_name} ${selectedStudent.student_last_name}` : t('students.studentSummary')}
+        size="lg"
+      >
+        {loadingStudentDetails ? (
+          <div className="text-center py-8">{t('common.loading')}</div>
+        ) : selectedStudent ? (
+          <div className="space-y-6">
+            {/* Student Information */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3 text-gray-900">{t('students.studentName')}</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-gray-700">{t('students.parentName')}:</span>
+                  <span className="ml-2 text-gray-900">
+                    {selectedStudent.parent_first_name} {selectedStudent.parent_middle_name || ''}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">{t('students.phone')}:</span>
+                  <span className="ml-2 text-gray-900">{selectedStudent.phone}</span>
+                </div>
+                {selectedStudent.email && (
+                  <div>
+                    <span className="font-medium text-gray-700">{t('common.email')}:</span>
+                    <span className="ml-2 text-gray-900">{selectedStudent.email}</span>
+                  </div>
+                )}
+                {selectedStudent.student_date_of_birth && (
+                  <div>
+                    <span className="font-medium text-gray-700">{t('students.dateOfBirth')}:</span>
+                    <span className="ml-2 text-gray-900">{formatDate(selectedStudent.student_date_of_birth)}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium text-gray-700">{t('common.status')}:</span>
+                  <span className="ml-2 text-gray-900">
+                    {selectedStudent.status === 'active' ? t('common.active') : 
+                     selectedStudent.status === 'inactive' ? t('common.inactive') : 
+                     selectedStudent.status === 'moved' ? t('common.moved') : 
+                     t('common.dontDisturb')}
+                  </span>
+                </div>
+              </div>
+              {selectedStudent.comment && (
+                <div className="mt-3">
+                  <span className="font-medium text-gray-700">{t('students.comment')}:</span>
+                  <p className="mt-1 text-sm text-gray-900">{selectedStudent.comment}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Payments */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-gray-900">{t('payments.title')} ({studentPayments.length})</h3>
+              {studentPayments.length > 0 ? (
+                <div className="border rounded overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.date')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.class')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.packageType')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.amount')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.paymentType')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.comment')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {studentPayments.map((payment) => (
+                        <tr key={payment.id}>
+                          <td className="px-4 py-2 text-sm text-gray-900">{formatDate(payment.created_at)}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{payment.courses?.name || '-'}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{payment.package_types?.name || '-'}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">
+                            {payment.package_types?.amount ? `${payment.package_types.amount} ${t('common.uah')}` : '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {payment.status === 'paid' ? t('payments.paid') : t('payments.pending')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-500">
+                            {payment.type === 'cash' ? t('payments.cash') : 
+                             payment.type === 'card' ? t('payments.card') : 
+                             t('payments.free')}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{payment.comment || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-gray-500">{t('students.noPayments')}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">{t('common.noData')}</div>
+        )}
       </Modal>
     </div>
   )
