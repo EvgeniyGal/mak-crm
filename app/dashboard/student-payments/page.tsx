@@ -125,7 +125,7 @@ export default function StudentPaymentsPage() {
           created_at,
           package_types!inner(name, lesson_count)
         `)
-        .in('student_id', students?.map(s => s.id) || [])
+        .in('student_id', allStudents.map(s => s.id))
         .order('created_at', { ascending: false })
 
       if (paymentsError) throw paymentsError
@@ -135,7 +135,7 @@ export default function StudentPaymentsPage() {
 
       if (paymentsData) {
         for (const payment of paymentsData) {
-          const student = students?.find(s => s.id === payment.student_id)
+          const student = allStudents.find(s => s.id === payment.student_id)
           if (!student) continue
 
           // Get the latest payment for each student
@@ -156,20 +156,18 @@ export default function StudentPaymentsPage() {
       }
 
       // Add students without payments
-      if (students) {
-        for (const student of students) {
-          if (!paymentMap.has(student.id)) {
-            paymentMap.set(student.id, {
-              student_id: student.id,
-              student_name: `${student.student_first_name} ${student.student_last_name}`,
-              package_type_name: null,
-              lesson_count: null,
-              available_lesson_count: 0,
-              payment_type: '',
-              payment_date: '',
-              payment_id: '',
-            })
-          }
+      for (const student of allStudents) {
+        if (!paymentMap.has(student.id)) {
+          paymentMap.set(student.id, {
+            student_id: student.id,
+            student_name: `${student.student_first_name} ${student.student_last_name}`,
+            package_type_name: null,
+            lesson_count: null,
+            available_lesson_count: 0,
+            payment_type: '',
+            payment_date: '',
+            payment_id: '',
+          })
         }
       }
 

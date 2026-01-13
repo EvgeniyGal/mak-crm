@@ -359,30 +359,65 @@ export default function StudentsPage() {
       }
 
       // Fetch payments
-      const { data: payments } = await supabase
+      const { data: payments, error: paymentsError } = await supabase
         .from('payments')
-        .select('created_at, status, type, available_lesson_count, class_id, package_type_id')
+        .select('created_at, status, type, class_id, package_type_id, comment')
         .eq('student_id', student.id)
         .order('created_at', { ascending: false })
 
+      if (paymentsError) {
+        console.error('Error fetching payments:', paymentsError)
+        throw paymentsError
+      }
+
       let paymentsData: Array<{ date: string; class_name: string; amount: number; status: string; type: string; available_lessons: number }> = []
       if (payments && payments.length > 0) {
+        console.log(`Found ${payments.length} payments for student ${student.id}`)
+        
         // Get course names and package amounts
-        const classIds = [...new Set(payments.map(p => p.class_id))]
+        const classIds = [...new Set(payments.map(p => p.class_id).filter(Boolean))]
         const packageIds = [...new Set(payments.map(p => p.package_type_id).filter(Boolean))]
 
-        const { data: coursesData } = await supabase
-          .from('courses')
-          .select('id, name')
-          .in('id', classIds)
+        let coursesData: Array<{ id: string; name: string }> = []
+        let packagesData: Array<{ id: string; amount: number }> = []
 
-        const { data: packagesData } = await supabase
-          .from('package_types')
-          .select('id, amount')
-          .in('id', packageIds)
+        if (classIds.length > 0) {
+          const { data, error: coursesError } = await supabase
+            .from('courses')
+            .select('id, name')
+            .in('id', classIds)
 
-        const coursesMap = new Map(coursesData?.map(c => [c.id, c.name]) || [])
-        const packagesMap = new Map(packagesData?.map(p => [p.id, p.amount]) || [])
+          if (coursesError) {
+            console.error('Error fetching courses:', coursesError)
+          } else {
+            coursesData = data || []
+          }
+        }
+
+        if (packageIds.length > 0) {
+          const { data, error: packagesError } = await supabase
+            .from('package_types')
+            .select('id, amount')
+            .in('id', packageIds)
+
+          if (packagesError) {
+            console.error('Error fetching package types:', packagesError)
+          } else {
+            packagesData = data || []
+          }
+        }
+
+        const coursesMap = new Map(coursesData.map(c => [c.id, c.name]))
+        const packagesMap = new Map(packagesData.map(p => [p.id, p.amount]))
+
+        // Get available lessons from student_class_lessons table
+        const { data: lessonsData } = await supabase
+          .from('student_class_lessons')
+          .select('class_id, lesson_count')
+          .eq('student_id', student.id)
+          .in('class_id', classIds)
+
+        const lessonsMap = new Map(lessonsData?.map(l => [l.class_id, l.lesson_count]) || [])
 
         paymentsData = payments.map(p => ({
           date: p.created_at,
@@ -390,8 +425,12 @@ export default function StudentsPage() {
           amount: packagesMap.get(p.package_type_id) || 0,
           status: p.status,
           type: p.type,
-          available_lessons: p.available_lesson_count,
+          available_lessons: lessonsMap.get(p.class_id) || 0,
         }))
+
+        console.log('Processed payments data:', paymentsData)
+      } else {
+        console.log('No payments found for student', student.id)
       }
 
       // Find first lesson date (earliest attendance)
