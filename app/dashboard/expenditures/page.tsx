@@ -47,6 +47,7 @@ export default function ExpendituresPage() {
     person: '',
     amount: 0,
     comment: '',
+    expenditure_date: '',
   })
 
   const fetchExpenditures = useCallback(async () => {
@@ -89,20 +90,45 @@ export default function ExpendituresPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const submitData = {
-        ...formData,
-        payment_type: formData.payment_type || null,
-        person: formData.person || null,
-        comment: formData.comment || null,
-      }
-
       if (editingExpenditure) {
+        const updateData: {
+          type: string
+          payment_type: string | null
+          person: string | null
+          amount: number
+          comment: string | null
+          created_at?: string
+          updated_at?: string
+        } = {
+          type: formData.type,
+          payment_type: formData.payment_type || null,
+          person: formData.person || null,
+          amount: formData.amount,
+          comment: formData.comment || null,
+        }
+
+        // Update expenditure date (created_at and updated_at) if provided
+        if (formData.expenditure_date) {
+          const expenditureDate = new Date(formData.expenditure_date)
+          expenditureDate.setHours(12, 0, 0, 0) // Set to noon to avoid timezone issues
+          const dateISO = expenditureDate.toISOString()
+          updateData.created_at = dateISO
+          updateData.updated_at = dateISO // Set both dates to the selected date
+        }
+
         const { error } = await supabase
           .from('expenditures')
-          .update(submitData)
+          .update(updateData)
           .eq('id', editingExpenditure.id)
         if (error) throw error
       } else {
+        const submitData = {
+          type: formData.type,
+          payment_type: formData.payment_type || null,
+          person: formData.person || null,
+          amount: formData.amount,
+          comment: formData.comment || null,
+        }
         const { error } = await supabase
           .from('expenditures')
           .insert([submitData])
@@ -120,12 +146,15 @@ export default function ExpendituresPage() {
 
   const handleEdit = (expenditure: Expenditure) => {
     setEditingExpenditure(expenditure)
+    // Format expenditure date for date input (YYYY-MM-DD)
+    const expenditureDate = expenditure.created_at ? new Date(expenditure.created_at).toISOString().split('T')[0] : ''
     setFormData({
       type: expenditure.type,
       payment_type: expenditure.payment_type || 'cash',
       person: expenditure.person || '',
       amount: expenditure.amount,
       comment: expenditure.comment || '',
+      expenditure_date: expenditureDate,
     })
     setIsModalOpen(true)
   }
@@ -153,6 +182,7 @@ export default function ExpendituresPage() {
       person: '',
       amount: 0,
       comment: '',
+      expenditure_date: '',
     })
     setEditingExpenditure(null)
   }
@@ -572,6 +602,19 @@ export default function ExpendituresPage() {
               rows={3}
             />
           </div>
+          {editingExpenditure && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('expenditures.date')}
+              </label>
+              <Input
+                type="date"
+                value={formData.expenditure_date}
+                onChange={(e) => setFormData({ ...formData, expenditure_date: e.target.value })}
+                className="w-full"
+              />
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}

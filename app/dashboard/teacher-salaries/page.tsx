@@ -51,6 +51,7 @@ export default function TeacherSalariesPage() {
     payment_type: 'cash',
     amount: 0,
     comment: '',
+    salary_date: '',
   })
 
   const fetchSalaries = useCallback(async () => {
@@ -107,19 +108,42 @@ export default function TeacherSalariesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const submitData = {
-        ...formData,
-        payment_type: formData.payment_type || null,
-        comment: formData.comment || null,
-      }
-
       if (editingSalary) {
+        const updateData: {
+          teacher: string
+          payment_type: string | null
+          amount: number
+          comment: string | null
+          created_at?: string
+          updated_at?: string
+        } = {
+          teacher: formData.teacher,
+          payment_type: formData.payment_type || null,
+          amount: formData.amount,
+          comment: formData.comment || null,
+        }
+
+        // Update salary date (created_at and updated_at) if provided
+        if (formData.salary_date) {
+          const salaryDate = new Date(formData.salary_date)
+          salaryDate.setHours(12, 0, 0, 0) // Set to noon to avoid timezone issues
+          const dateISO = salaryDate.toISOString()
+          updateData.created_at = dateISO
+          updateData.updated_at = dateISO // Set both dates to the selected date
+        }
+
         const { error } = await supabase
           .from('teacher_salaries')
-          .update(submitData)
+          .update(updateData)
           .eq('id', editingSalary.id)
         if (error) throw error
       } else {
+        const submitData = {
+          teacher: formData.teacher,
+          payment_type: formData.payment_type || null,
+          amount: formData.amount,
+          comment: formData.comment || null,
+        }
         const { error } = await supabase
           .from('teacher_salaries')
           .insert([submitData])
@@ -137,11 +161,14 @@ export default function TeacherSalariesPage() {
 
   const handleEdit = (salary: TeacherSalary) => {
     setEditingSalary(salary)
+    // Format salary date for date input (YYYY-MM-DD)
+    const salaryDate = salary.created_at ? new Date(salary.created_at).toISOString().split('T')[0] : ''
     setFormData({
       teacher: salary.teacher,
       payment_type: salary.payment_type || 'cash',
       amount: salary.amount,
       comment: salary.comment || '',
+      salary_date: salaryDate,
     })
     setIsModalOpen(true)
   }
@@ -168,6 +195,7 @@ export default function TeacherSalariesPage() {
       payment_type: 'cash',
       amount: 0,
       comment: '',
+      salary_date: '',
     })
     setEditingSalary(null)
   }
@@ -531,6 +559,19 @@ export default function TeacherSalariesPage() {
               rows={3}
             />
           </div>
+          {editingSalary && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('teacherSalaries.date')}
+              </label>
+              <Input
+                type="date"
+                value={formData.salary_date}
+                onChange={(e) => setFormData({ ...formData, salary_date: e.target.value })}
+                className="w-full"
+              />
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
               {t('common.cancel')}
