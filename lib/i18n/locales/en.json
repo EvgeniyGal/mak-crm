@@ -528,13 +528,15 @@
   },
   "finance": {
     "date": "Date",
-    "balanceAsOfStartDay": "Balance as of Start Day",
+    "beginningBalance": "Beginning Balance",
     "incomesCash": "Incomes (Cash)",
     "incomesCard": "Incomes (Card)",
     "expendituresCash": "Expenditures (Cash)",
     "expendituresCard": "Expenditures (Card)",
     "balanceCash": "Balance (Cash)",
     "balanceCard": "Balance (Card)",
+    "accumulatedBalanceCash": "Accumulated Balance by Cash",
+    "accumulatedBalanceCard": "Accumulated Balance by Card",
     "totalBalance": "Total Balance",
     "total": "Total"
   },

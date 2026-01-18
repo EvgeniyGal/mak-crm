@@ -11,13 +11,14 @@ import { useTranslation } from 'react-i18next'
 
 interface FinanceRow {
   date: string
-  balanceAsOfStartDay: number
   incomesCash: number
   incomesCard: number
   expendituresCash: number
   expendituresCard: number
   balanceCash: number
   balanceCard: number
+  accumulatedBalanceCash: number
+  accumulatedBalanceCard: number
   totalBalance: number
 }
 
@@ -28,11 +29,13 @@ export default function FinancePage() {
   const [financeData, setFinanceData] = useState<FinanceRow[]>([])
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
-  const [initialBalance, setInitialBalance] = useState<number>(0)
+  const [initialBalanceCash, setInitialBalanceCash] = useState<number>(0)
+  const [initialBalanceCard, setInitialBalanceCard] = useState<number>(0)
   // Debounced values for actual data fetching
   const [debouncedDateStart, setDebouncedDateStart] = useState('')
   const [debouncedDateEnd, setDebouncedDateEnd] = useState('')
-  const [debouncedInitialBalance, setDebouncedInitialBalance] = useState<number>(0)
+  const [debouncedInitialBalanceCash, setDebouncedInitialBalanceCash] = useState<number>(0)
+  const [debouncedInitialBalanceCard, setDebouncedInitialBalanceCard] = useState<number>(0)
   const isInitialMount = useRef(true)
 
   // Set default to current week (Monday to today)
@@ -116,8 +119,9 @@ export default function FinancePage() {
       const endDate = new Date(debouncedDateEnd)
       endDate.setHours(23, 59, 59, 999)
       
-      // Use the debounced initialBalance value
-      const currentInitialBalance = debouncedInitialBalance
+      // Use the debounced initial balance values
+      const currentInitialBalanceCash = debouncedInitialBalanceCash
+      const currentInitialBalanceCard = debouncedInitialBalanceCard
 
       // Get all dates in range
       const dates: string[] = []
@@ -172,24 +176,13 @@ export default function FinancePage() {
 
       if (salariesError) throw salariesError
 
-      // For the first date in the range, balanceAsOfStartDay should be 0 (or user-provided value)
-      // Don't recalculate from previous days - always start fresh for the first date
-      let initialBalanceCash = 0
-      let initialBalanceCard = 0
-
-      // If user has provided an initial balance, distribute it proportionally
+      // Use user-provided initial balances for cash and card
       // Otherwise, start with 0 for both cash and card
-      if (currentInitialBalance !== 0) {
-        // User provided initial balance - put it all in cash by default
-        // (or we could distribute it, but for simplicity, put it in cash)
-        initialBalanceCash = currentInitialBalance
-        initialBalanceCard = 0
-      }
 
       // Now calculate data for each date in the range (for display)
       const rows: FinanceRow[] = []
-      let runningBalanceCash = initialBalanceCash
-      let runningBalanceCard = initialBalanceCard
+      let runningBalanceCash = currentInitialBalanceCash
+      let runningBalanceCard = currentInitialBalanceCard
 
       // Process each date
       for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
@@ -262,19 +255,10 @@ export default function FinancePage() {
           }
         })
 
-        // Store balance before adding today's transactions (this is the balance as of start of day)
-        // For the first date in range, always use 0 (or user-provided initial balance if set)
-        // Don't recalculate from previous days
-        let balanceAsOfStartDay = 0
+        // For the first date, set running balances to match the initial balances
         if (isFirstDateInRange) {
-          // For the first date, use user-provided initial balance if set, otherwise 0
-          balanceAsOfStartDay = currentInitialBalance
-          // Set running balances to match the initial balance
-          runningBalanceCash = initialBalanceCash
-          runningBalanceCard = initialBalanceCard
-        } else {
-          // For subsequent dates, use the running balance from previous day
-          balanceAsOfStartDay = runningBalanceCash + runningBalanceCard
+          runningBalanceCash = currentInitialBalanceCash
+          runningBalanceCard = currentInitialBalanceCard
         }
 
         // Calculate balances after today's transactions
@@ -286,18 +270,22 @@ export default function FinancePage() {
         const balanceCash = incomesCash - expendituresCash
         // БАЛАНС (КАРТКА) = ДОХОДИ (КАРТКА) - ВИТРАТИ (КАРТКА) for this day
         const balanceCard = incomesCard - expendituresCard
-        // ЗАГАЛЬНИЙ БАЛАНС = БАЛАНС НА ПОЧАТОК ДНЯ + БАЛАНС (ГОТІВКА) + БАЛАНС (КАРТКА) for this day
-        const totalBalance = balanceAsOfStartDay + balanceCash + balanceCard
+        // Accumulated balances are the running balances after today's transactions
+        const accumulatedBalanceCash = runningBalanceCash
+        const accumulatedBalanceCard = runningBalanceCard
+        // ЗАГАЛЬНИЙ БАЛАНС = Accumulated Cash + Accumulated Card
+        const totalBalance = accumulatedBalanceCash + accumulatedBalanceCard
 
         rows.push({
           date: dateStr,
-          balanceAsOfStartDay: balanceAsOfStartDay,
           incomesCash,
           incomesCard,
           expendituresCash,
           expendituresCard,
           balanceCash,
           balanceCard,
+          accumulatedBalanceCash,
+          accumulatedBalanceCard,
           totalBalance,
         })
       }
@@ -308,7 +296,7 @@ export default function FinancePage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedDateStart, debouncedDateEnd, debouncedInitialBalance, supabase])
+  }, [debouncedDateStart, debouncedDateEnd, debouncedInitialBalanceCash, debouncedInitialBalanceCard, supabase])
 
   // On initial mount, set debounced values immediately (no delay)
   useEffect(() => {
@@ -316,32 +304,47 @@ export default function FinancePage() {
       // Initial load - set immediately without debounce
       setDebouncedDateStart(dateRangeStart)
       setDebouncedDateEnd(dateRangeEnd)
-      setDebouncedInitialBalance(initialBalance)
+      setDebouncedInitialBalanceCash(initialBalanceCash)
+      setDebouncedInitialBalanceCard(initialBalanceCard)
       isInitialMount.current = false
     }
     // Note: Date fields now update on blur only via onBlur handlers, not via this useEffect
-  }, [dateRangeStart, dateRangeEnd, initialBalance]) // Depend on date ranges so it runs when they're set
+  }, [dateRangeStart, dateRangeEnd, initialBalanceCash, initialBalanceCard]) // Depend on date ranges so it runs when they're set
 
   // Debounce initial balance changes - wait 1 second after user stops typing
   useEffect(() => {
     if (isInitialMount.current) {
       // Initial load - set immediately
-      setDebouncedInitialBalance(initialBalance)
+      setDebouncedInitialBalanceCash(initialBalanceCash)
     } else {
       // Subsequent changes - debounce for 1 second
       const timer = setTimeout(() => {
-        setDebouncedInitialBalance(initialBalance)
+        setDebouncedInitialBalanceCash(initialBalanceCash)
       }, 1000)
 
       return () => clearTimeout(timer)
     }
-  }, [initialBalance])
+  }, [initialBalanceCash])
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      // Initial load - set immediately
+      setDebouncedInitialBalanceCard(initialBalanceCard)
+    } else {
+      // Subsequent changes - debounce for 1 second
+      const timer = setTimeout(() => {
+        setDebouncedInitialBalanceCard(initialBalanceCard)
+      }, 1000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [initialBalanceCard])
 
   useEffect(() => {
     if (debouncedDateStart && debouncedDateEnd) {
       fetchFinanceData()
     }
-  }, [debouncedDateStart, debouncedDateEnd, debouncedInitialBalance, fetchFinanceData])
+  }, [debouncedDateStart, debouncedDateEnd, debouncedInitialBalanceCash, debouncedInitialBalanceCard, fetchFinanceData])
 
   const totalIncomesCash = financeData.reduce((sum, row) => sum + row.incomesCash, 0)
   const totalIncomesCard = financeData.reduce((sum, row) => sum + row.incomesCard, 0)
@@ -353,10 +356,6 @@ export default function FinancePage() {
       { 
         header: t('finance.date'), 
         accessor: (row) => formatDate(row.date) 
-      },
-      { 
-        header: t('finance.balanceAsOfStartDay'), 
-        accessor: (row) => `${row.balanceAsOfStartDay.toFixed(2)} ${t('common.uah')}` 
       },
       { 
         header: t('finance.incomesCash'), 
@@ -383,6 +382,14 @@ export default function FinancePage() {
         accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
       },
       { 
+        header: t('finance.accumulatedBalanceCash'), 
+        accessor: (row) => `${row.accumulatedBalanceCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.accumulatedBalanceCard'), 
+        accessor: (row) => `${row.accumulatedBalanceCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
         header: t('finance.totalBalance'), 
         accessor: (row) => `${row.totalBalance.toFixed(2)} ${t('common.uah')}` 
       },
@@ -394,13 +401,14 @@ export default function FinancePage() {
       const lastRow = financeData[financeData.length - 1]
       exportData.push({
         date: t('finance.total'),
-        balanceAsOfStartDay: 0,
         incomesCash: totalIncomesCash,
         incomesCard: totalIncomesCard,
         expendituresCash: totalExpendituresCash,
         expendituresCard: totalExpendituresCard,
         balanceCash: lastRow.balanceCash,
         balanceCard: lastRow.balanceCard,
+        accumulatedBalanceCash: lastRow.accumulatedBalanceCash,
+        accumulatedBalanceCard: lastRow.accumulatedBalanceCard,
         totalBalance: lastRow.totalBalance,
       } as FinanceRow)
     }
@@ -415,10 +423,6 @@ export default function FinancePage() {
         accessor: (row) => formatDate(row.date) 
       },
       { 
-        header: t('finance.balanceAsOfStartDay'), 
-        accessor: (row) => `${row.balanceAsOfStartDay.toFixed(2)} ${t('common.uah')}` 
-      },
-      { 
         header: t('finance.incomesCash'), 
         accessor: (row) => `${row.incomesCash.toFixed(2)} ${t('common.uah')}` 
       },
@@ -443,6 +447,14 @@ export default function FinancePage() {
         accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
       },
       { 
+        header: t('finance.accumulatedBalanceCash'), 
+        accessor: (row) => `${row.accumulatedBalanceCash.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
+        header: t('finance.accumulatedBalanceCard'), 
+        accessor: (row) => `${row.accumulatedBalanceCard.toFixed(2)} ${t('common.uah')}` 
+      },
+      { 
         header: t('finance.totalBalance'), 
         accessor: (row) => `${row.totalBalance.toFixed(2)} ${t('common.uah')}` 
       },
@@ -454,13 +466,14 @@ export default function FinancePage() {
       const lastRow = financeData[financeData.length - 1]
       exportData.push({
         date: t('finance.total'),
-        balanceAsOfStartDay: 0,
         incomesCash: totalIncomesCash,
         incomesCard: totalIncomesCard,
         expendituresCash: totalExpendituresCash,
         expendituresCard: totalExpendituresCard,
         balanceCash: lastRow.balanceCash,
         balanceCard: lastRow.balanceCard,
+        accumulatedBalanceCash: lastRow.accumulatedBalanceCash,
+        accumulatedBalanceCard: lastRow.accumulatedBalanceCard,
         totalBalance: lastRow.totalBalance,
       } as FinanceRow)
     }
@@ -517,16 +530,33 @@ export default function FinancePage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('finance.balanceAsOfStartDay')}</label>
-            <Input
-              type="number"
-              value={initialBalance}
-              onChange={(e) => setInitialBalance(parseFloat(e.target.value) || 0)}
-              className="w-48"
-              placeholder="0"
-              step="0.01"
-              min="0"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('finance.beginningBalance')}</label>
+            <div className="flex gap-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">{t('common.cash')}</label>
+                <Input
+                  type="number"
+                  value={initialBalanceCash}
+                  onChange={(e) => setInitialBalanceCash(parseFloat(e.target.value) || 0)}
+                  className="w-32"
+                  placeholder="0"
+                  step="0.01"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">{t('common.card')}</label>
+                <Input
+                  type="number"
+                  value={initialBalanceCard}
+                  onChange={(e) => setInitialBalanceCard(parseFloat(e.target.value) || 0)}
+                  className="w-32"
+                  placeholder="0"
+                  step="0.01"
+                  min="0"
+                />
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button onClick={getCurrentWeek} variant="outline">
@@ -549,9 +579,6 @@ export default function FinancePage() {
                   {t('finance.date')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.balanceAsOfStartDay')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('finance.incomesCash')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -570,6 +597,12 @@ export default function FinancePage() {
                   {t('finance.balanceCard')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('finance.accumulatedBalanceCash')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('finance.accumulatedBalanceCard')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('finance.totalBalance')}
                 </th>
               </tr>
@@ -579,9 +612,6 @@ export default function FinancePage() {
                 <tr key={index}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 sticky left-0 bg-white z-10">
                     {formatDate(row.date)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {row.balanceAsOfStartDay.toFixed(2)} {t('common.uah')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
                     {row.incomesCash.toFixed(2)} {t('common.uah')}
@@ -601,6 +631,12 @@ export default function FinancePage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     {row.balanceCard.toFixed(2)} {t('common.uah')}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {row.accumulatedBalanceCash.toFixed(2)} {t('common.uah')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {row.accumulatedBalanceCard.toFixed(2)} {t('common.uah')}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
                     {row.totalBalance.toFixed(2)} {t('common.uah')}
                   </td>
@@ -610,9 +646,6 @@ export default function FinancePage() {
                 <tr className="bg-gray-50 font-semibold">
                   <td className="px-6 py-4 whitespace-nowrap text-sm sticky left-0 bg-gray-50 z-10">
                     {t('finance.total')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    -
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
                     {totalIncomesCash.toFixed(2)} {t('common.uah')}
@@ -631,6 +664,12 @@ export default function FinancePage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     -
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {financeData[financeData.length - 1]?.accumulatedBalanceCash.toFixed(2) || '0.00'} {t('common.uah')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {financeData[financeData.length - 1]?.accumulatedBalanceCard.toFixed(2) || '0.00'} {t('common.uah')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {financeData[financeData.length - 1]?.totalBalance.toFixed(2) || '0.00'} {t('common.uah')}

@@ -527,13 +527,15 @@
   },
   "finance": {
     "date": "Дата",
-    "balanceAsOfStartDay": "Баланс на початок дня",
+    "beginningBalance": "Початковий баланс",
     "incomesCash": "Доходи (Готівка)",
     "incomesCard": "Доходи (Картка)",
     "expendituresCash": "Витрати (Готівка)",
     "expendituresCard": "Витрати (Картка)",
     "balanceCash": "Баланс (Готівка)",
     "balanceCard": "Баланс (Картка)",
+    "accumulatedBalanceCash": "Накопичений баланс (Готівка)",
+    "accumulatedBalanceCard": "Накопичений баланс (Картка)",
     "totalBalance": "Загальний баланс",
     "total": "Всього"
   },
