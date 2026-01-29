@@ -699,9 +699,9 @@ export default function AttendancesPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('attendances.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl font-bold text-gray-900 md:text-3xl truncate min-w-0">{t('attendances.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -709,9 +709,9 @@ export default function AttendancesPage() {
               disabled={filteredAttendances.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('attendances.addAttendance')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('attendances.addAttendance')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('attendances.addAttendance')}</span>
           </Button>
         </div>
       </div>

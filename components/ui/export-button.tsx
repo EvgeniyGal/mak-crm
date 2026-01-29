@@ -22,10 +22,11 @@ export function ExportButton({ onExportXLS, onExportCSV, disabled = false }: Exp
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 p-2 md:px-3 md:py-1.5"
+        title={t('common.export')}
       >
         <Download className="h-4 w-4" />
-        {t('common.export')}
+        <span className="hidden md:inline">{t('common.export')}</span>
       </Button>
       
       {isOpen && (

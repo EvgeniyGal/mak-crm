@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import {
   Home,
@@ -25,6 +25,7 @@ import {
   ChevronRight,
   User,
   Wallet,
+  X,
 } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslation } from 'react-i18next'
@@ -70,7 +71,12 @@ const getGroupKey = (label: string) => {
   return label.toLowerCase().replace(/\s+/g, '-')
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isMobileOpen?: boolean
+  onMobileClose?: () => void
+}
+
+export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -79,6 +85,7 @@ export function Sidebar() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const openedAtRef = useRef<number>(0)
 
   // Wait for client-side hydration to prevent SSR mismatch
   useEffect(() => {
@@ -157,10 +164,24 @@ export function Sidebar() {
     })
   }, [pathname, menuItems])
 
-  // Close profile menu when route changes
+  // Track when mobile menu opened so we can ignore the same tap on backdrop
+  useEffect(() => {
+    if (isMobileOpen) {
+      openedAtRef.current = Date.now()
+    }
+  }, [isMobileOpen])
+
+  // Close profile menu and mobile menu when route changes
   useEffect(() => {
     setProfileMenuOpen(false)
-  }, [pathname])
+    onMobileClose?.()
+  }, [pathname, onMobileClose])
+
+  const handleBackdropClick = () => {
+    // Ignore clicks within 400ms of opening - same tap that opened the menu often hits the backdrop
+    if (Date.now() - openedAtRef.current < 400) return
+    onMobileClose?.()
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -281,9 +302,32 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-64 bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
-      <div className="p-4 pb-4 flex-shrink-0">
-        <div className="flex flex-col items-center justify-center gap-2 w-full">
+    <>
+      {/* Backdrop for mobile - closes sidebar on tap */}
+      {onMobileClose && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 transition-opacity duration-200 md:hidden"
+          style={{
+            opacity: isMobileOpen ? 1 : 0,
+            pointerEvents: isMobileOpen ? 'auto' : 'none',
+          }}
+          onClick={handleBackdropClick}
+          onKeyDown={(e) => e.key === 'Escape' && onMobileClose()}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          'w-64 bg-gray-900 text-white h-screen flex flex-col overflow-hidden',
+          'fixed left-0 top-0 z-40 transform transition-transform duration-200 ease-out md:relative md:translate-x-0',
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full',
+          /* When closed on mobile, don't capture clicks so hamburger button receives them */
+          isMobileOpen ? 'pointer-events-auto' : 'pointer-events-none md:pointer-events-auto'
+        )}
+        aria-label="Main navigation"
+      >
+      <div className="p-4 pb-4 flex-shrink-0 flex items-center justify-between gap-2">
+        <div className="flex flex-col items-center justify-center flex-1 min-w-0">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="48"
@@ -305,8 +349,26 @@ export function Sidebar() {
             </text>
           </svg>
         </div>
+        {/* Close button - mobile only */}
+        {onMobileClose && (
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="md:hidden p-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
-      <nav className="flex-1 overflow-y-auto px-4 space-y-1">
+      <nav
+        className="flex-1 overflow-y-auto px-4 space-y-1"
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('a')) {
+            onMobileClose?.()
+          }
+        }}
+      >
         {visibleItems.map((item) => renderMenuItem(item))}
       </nav>
       <div className="p-4 pt-4 border-t border-gray-700 flex-shrink-0">
@@ -363,7 +425,8 @@ export function Sidebar() {
           </button>
         </div>
       </div>
-    </div>
+      </aside>
+    </>
   )
 }
 

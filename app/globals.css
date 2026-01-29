@@ -117,6 +117,12 @@ table thead th {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Dashboard main: fixed viewport with smooth horizontal/vertical scroll on mobile */
+  .dashboard-main {
+    -webkit-overflow-scrolling: touch;
+    overflow: auto;
+  }
 }
 
 /* Custom scrollbar styles - only thumb, no buttons/arrows */
