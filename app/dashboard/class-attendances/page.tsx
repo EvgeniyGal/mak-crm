@@ -444,21 +444,23 @@ export default function ClassAttendancesPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('classAttendances.title')}</h1>
-        {isOwner && selectedClassId && students.length > 0 && (
-          <ExportButton 
-            onExportXLS={handleExportXLS}
-            onExportCSV={handleExportCSV}
-            disabled={students.length === 0}
-          />
-        )}
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate min-w-0">{t('classAttendances.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
+          {isOwner && selectedClassId && students.length > 0 && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={students.length === 0}
+            />
+          )}
+        </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="w-64">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="w-full md:w-64 flex-shrink-0">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('courses.title')}
             </label>
@@ -474,7 +476,7 @@ export default function ClassAttendancesPage() {
               ))}
             </Select>
           </div>
-          <div className="w-64">
+          <div className="w-full md:w-64 flex-shrink-0">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('common.month')}
             </label>
@@ -494,31 +496,31 @@ export default function ClassAttendancesPage() {
 
       {!loading && selectedClassId && students.length > 0 && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-auto max-h-[calc(100vh-300px)]">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)]">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-100 sticky top-0 z-30">
                 <tr>
-                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">{t('attendances.student')}</th>
+                  <th className="px-2 md:px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)] min-w-[120px]">{t('attendances.student')}</th>
                   {days.map((day) => (
                     <th
                       key={day}
-                      className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[40px]"
+                      className="px-1 md:px-2 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[32px] md:min-w-[40px]"
                     >
                       {day}
                     </th>
                   ))}
-                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.present')}</th>
-                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.absent')}</th>
-                  <th className="px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.validReason')}</th>
+                  <th className="px-2 md:px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase border-l">{t('attendances.present')}</th>
+                  <th className="px-2 md:px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.absent')}</th>
+                  <th className="px-2 md:px-4 py-2 bg-gray-100 text-xs font-medium text-gray-900 uppercase">{t('attendances.validReason')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {students.map((student) => (
                   <tr key={student.id}>
-                    <td className="px-4 py-3 whitespace-nowrap font-medium sticky left-0 bg-white z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                    <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap font-medium sticky left-0 bg-white z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] text-xs md:text-sm">
                       <button
                         onClick={() => handleStudentClick(student.id)}
-                        className="text-blue-600 hover:text-blue-900 hover:underline cursor-pointer"
+                        className="text-blue-600 hover:text-blue-900 hover:underline cursor-pointer text-left"
                       >
                         {student.student_first_name} {student.student_last_name}
                       </button>
@@ -526,22 +528,22 @@ export default function ClassAttendancesPage() {
                     {student.attendances.map((attendance, idx) => (
                       <td
                         key={idx}
-                        className="px-1 py-2 text-center text-xs"
+                        className="px-0.5 md:px-1 py-1 md:py-2 text-center text-xs"
                         title={`${formatDate(attendance.date)}: ${getStatusLabel(attendance.status)}`}
                       >
                         <div
-                          className={`w-8 h-8 rounded mx-auto ${getStatusColor(attendance.status)}`}
+                          className={`w-6 h-6 md:w-8 md:h-8 rounded mx-auto ${getStatusColor(attendance.status)}`}
                         >
                         </div>
                       </td>
                     ))}
-                    <td className="px-4 py-3 text-center text-sm font-medium text-green-600 border-l">
+                    <td className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm font-medium text-green-600 border-l">
                       {student.totalPresent}
                     </td>
-                    <td className="px-4 py-3 text-center text-sm font-medium text-red-600">
+                    <td className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm font-medium text-red-600">
                       {student.totalAbsent}
                     </td>
-                    <td className="px-4 py-3 text-center text-sm font-medium text-yellow-600">
+                    <td className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm font-medium text-yellow-600">
                       {student.totalValidReason}
                     </td>
                   </tr>
@@ -549,7 +551,7 @@ export default function ClassAttendancesPage() {
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td className="px-4 py-3 font-medium sticky left-0 bg-gray-50 z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                  <td className="px-2 md:px-4 py-2 md:py-3 font-medium sticky left-0 bg-gray-50 z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] text-xs md:text-sm">
                     {t('attendances.totalPerDay')}
                   </td>
                   {days.map((day) => {
@@ -562,41 +564,41 @@ export default function ClassAttendancesPage() {
                     const present = dayStudents.filter(s => s === 'present').length
                     const absent = dayStudents.filter(s => s === 'absent').length
                     return (
-                      <td key={day} className="px-1 py-2 text-center text-xs">
+                      <td key={day} className="px-0.5 md:px-1 py-1 md:py-2 text-center text-xs">
                         <div className="text-green-600 font-semibold">{present}</div>
                         <div className="text-red-600">{absent}</div>
                       </td>
                     )
                   })}
-                  <td className="px-4 py-3 text-center font-medium border-l">
+                  <td className="px-2 md:px-4 py-2 md:py-3 text-center font-medium border-l text-xs md:text-sm">
                     {students.reduce((sum, s) => sum + s.totalPresent, 0)}
                   </td>
-                  <td className="px-4 py-3 text-center font-medium">
+                  <td className="px-2 md:px-4 py-2 md:py-3 text-center font-medium text-xs md:text-sm">
                     {students.reduce((sum, s) => sum + s.totalAbsent, 0)}
                   </td>
-                  <td className="px-4 py-3 text-center font-medium">
+                  <td className="px-2 md:px-4 py-2 md:py-3 text-center font-medium text-xs md:text-sm">
                     {students.reduce((sum, s) => sum + s.totalValidReason, 0)}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          <div className="p-4 bg-gray-50 border-t">
-            <div className="flex gap-6 text-sm">
+          <div className="p-3 md:p-4 bg-gray-50 border-t">
+            <div className="flex flex-wrap gap-3 md:gap-6 text-xs md:text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-green-500"></div>
+                <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-green-500 flex-shrink-0"></div>
                 <span>{t('attendances.present')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-red-500"></div>
+                <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-red-500 flex-shrink-0"></div>
                 <span>{t('attendances.absent')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-yellow-500"></div>
+                <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-yellow-500 flex-shrink-0"></div>
                 <span>{t('attendances.validReason')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-gray-300"></div>
+                <div className="w-5 h-5 md:w-6 md:h-6 rounded bg-gray-300 flex-shrink-0"></div>
                 <span>{t('attendances.noClass')}</span>
               </div>
             </div>
@@ -628,9 +630,9 @@ export default function ClassAttendancesPage() {
         ) : selectedStudent ? (
           <div className="space-y-6">
             {/* Student Information */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-lg font-semibold mb-3 text-gray-900">{t('students.studentName')}</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+              <h3 className="text-base md:text-lg font-semibold mb-3 text-gray-900">{t('students.studentName')}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 text-xs md:text-sm">
                 <div>
                   <span className="font-medium text-gray-700">{t('students.parentName')}:</span>
                   <span className="ml-2 text-gray-900">
@@ -665,51 +667,51 @@ export default function ClassAttendancesPage() {
               </div>
               {selectedStudent.comment && (
                 <div className="mt-3">
-                  <span className="font-medium text-gray-700">{t('students.comment')}:</span>
-                  <p className="mt-1 text-sm text-gray-900">{selectedStudent.comment}</p>
+                  <span className="font-medium text-gray-700 text-xs md:text-sm">{t('students.comment')}:</span>
+                  <p className="mt-1 text-xs md:text-sm text-gray-900">{selectedStudent.comment}</p>
                 </div>
               )}
             </div>
 
             {/* Payments */}
             <div>
-              <h3 className="text-lg font-semibold mb-2 text-gray-900">{t('payments.title')} ({studentPayments.length})</h3>
+              <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900">{t('payments.title')} ({studentPayments.length})</h3>
               {studentPayments.length > 0 ? (
                 <div className="border rounded overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.date')}</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.class')}</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.packageType')}</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.amount')}</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.paymentType')}</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.comment')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.date')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.class')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.packageType')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.amount')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.paymentType')}</th>
+                        <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('payments.comment')}</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {studentPayments.map((payment) => (
                         <tr key={payment.id}>
-                          <td className="px-4 py-2 text-sm text-gray-900">{formatDate(payment.created_at)}</td>
-                          <td className="px-4 py-2 text-sm text-gray-500">{payment.courses?.name || '-'}</td>
-                          <td className="px-4 py-2 text-sm text-gray-500">{payment.package_types?.name || '-'}</td>
-                          <td className="px-4 py-2 text-sm text-gray-500">
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-900">{formatDate(payment.created_at)}</td>
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-500">{payment.courses?.name || '-'}</td>
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-500">{payment.package_types?.name || '-'}</td>
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-500">
                             {payment.package_types?.amount ? `${payment.package_types.amount} ${t('common.uah')}` : '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm">
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm">
                             <span className={`px-2 py-1 text-xs rounded-full ${
                               payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                             }`}>
                               {payment.status === 'paid' ? t('payments.paid') : t('payments.pending')}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-500">
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-500">
                             {payment.type === 'cash' ? t('payments.cash') : 
                              payment.type === 'card' ? t('payments.card') : 
                              t('payments.free')}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-500">{payment.comment || '-'}</td>
+                          <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-500">{payment.comment || '-'}</td>
                         </tr>
                       ))}
                     </tbody>

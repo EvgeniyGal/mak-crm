@@ -21,7 +21,10 @@ export function exportToXLS<T = Record<string, unknown>>(
     const rows = data.map(row =>
       columns.map(col => {
         const value = col.accessor(row)
-        return value !== null && value !== undefined ? String(value) : ''
+        // Preserve number types, convert other types to string
+        if (value === null || value === undefined) return ''
+        if (typeof value === 'number') return value
+        return String(value)
       })
     )
 

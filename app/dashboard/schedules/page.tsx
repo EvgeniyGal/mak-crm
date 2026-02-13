@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Plus, Edit, Trash2, Calendar, ChevronLeft, ChevronRight, Eye, CheckCircle2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, ChevronLeft, ChevronRight, Eye, CheckCircle2, List } from 'lucide-react'
 import { Calendar as BigCalendar, momentLocalizer, Event, SlotInfo } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import moment from 'moment'
@@ -17,6 +17,8 @@ import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 const DragAndDropCalendar = withDragAndDrop(BigCalendar)
 
@@ -91,9 +93,17 @@ const createCustomDayHeader = (onViewDayDetails: (date: string) => void) => {
     return (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 4px' }}>
         <span>{label}</span>
-        <button
+        <div
           onClick={handleClick}
           onMouseDown={(e) => e.stopPropagation()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleClick(e as unknown as React.MouseEvent)
+            }
+          }}
           style={{
             padding: '2px 6px',
             background: 'rgba(59, 130, 246, 0.1)',
@@ -119,7 +129,7 @@ const createCustomDayHeader = (onViewDayDetails: (date: string) => void) => {
           title="Переглянути деталі дня"
         >
           <Eye size={14} />
-        </button>
+        </div>
       </div>
     )
   }
@@ -178,8 +188,6 @@ export default function SchedulesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null)
   const [conflicts, setConflicts] = useState<string[]>([])
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [view, setView] = useState<'list' | 'calendar'>('calendar')
   const [roomFilter, setRoomFilter] = useState<string>('')
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
@@ -667,7 +675,7 @@ export default function SchedulesPage() {
     }
   }
 
-  const handleEdit = (schedule: Schedule) => {
+  const handleEdit = useCallback((schedule: Schedule) => {
     setEditingSchedule(schedule)
     setFormData({
       class_id: schedule.class_id,
@@ -676,9 +684,9 @@ export default function SchedulesPage() {
       week_day: schedule.week_day,
     })
     setIsModalOpen(true)
-  }
+  }, [])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm(t('schedules.confirmDelete'))) return
 
     try {
@@ -692,7 +700,7 @@ export default function SchedulesPage() {
       console.error('Error deleting schedule:', error)
       alert(t('schedules.errorDeleting'))
     }
-  }
+  }, [supabase, fetchSchedules, t])
 
   const resetForm = () => {
     setFormData({
@@ -1120,13 +1128,7 @@ export default function SchedulesPage() {
     setIsModalOpen(true)
   }
 
-  const paginatedSchedules = schedules.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-  const totalPages = Math.ceil(schedules.length / itemsPerPage)
-
-  const getTeacherNames = (teacherIds: string[]) => {
+  const getTeacherNames = useCallback((teacherIds: string[]) => {
     return teacherIds
       .map(id => {
         const teacher = teachers.find(t => t.id === id)
@@ -1134,7 +1136,88 @@ export default function SchedulesPage() {
       })
       .filter(Boolean)
       .join(', ')
-  }
+  }, [teachers])
+
+  // Column definitions for DataTable
+  const columns: ColumnDef<Schedule>[] = useMemo(() => [
+    {
+      accessorKey: 'room',
+      header: t('schedules.room'),
+      cell: ({ row }) => {
+        const schedule = row.original
+        const roomName = schedule.classes?.rooms?.name || schedule.classes?.room_id ? 
+          rooms.find(r => r.id === schedule.classes?.room_id)?.name || '-' : '-'
+        return <div className="text-gray-900">{roomName}</div>
+      },
+    },
+    {
+      accessorKey: 'class',
+      header: t('schedules.class'),
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.classes?.name || '-'}</div>
+      ),
+    },
+    {
+      accessorKey: 'teachers',
+      header: t('schedules.teachers'),
+      cell: ({ row }) => {
+        const schedule = row.original
+        const teacherNames = schedule.classes?.teachers_ids
+          ? getTeacherNames(schedule.classes.teachers_ids)
+          : '-'
+        return <div className="text-sm text-gray-900">{teacherNames}</div>
+      },
+    },
+    {
+      accessorKey: 'time_slot',
+      header: t('schedules.startTime'),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-900">{row.original.time_slot}</div>
+      ),
+    },
+    {
+      accessorKey: 'end_time',
+      header: t('schedules.endTime'),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-900">{row.original.end_time || '-'}</div>
+      ),
+    },
+    {
+      accessorKey: 'week_day',
+      header: t('schedules.day'),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-900">{weekDays[row.original.week_day]}</div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: t('common.actions'),
+      cell: ({ row }) => {
+        const schedule = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleEdit(schedule)}
+              className="text-blue-600 hover:text-blue-900"
+              title={t('common.edit')}
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(schedule.id)}
+              className="text-red-600 hover:text-red-900"
+              title={t('common.delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, rooms, teachers, weekDays, getTeacherNames, handleEdit, handleDelete])
 
   // Generate a consistent color for each class based on class ID
   const getClassColor = (classId: string | undefined): { bg: string; border: string } => {
@@ -1484,9 +1567,9 @@ export default function SchedulesPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('schedules.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate min-w-0">{t('schedules.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -1497,19 +1580,24 @@ export default function SchedulesPage() {
           <Button
             variant={view === 'list' ? 'default' : 'outline'}
             onClick={() => setView('list')}
+            className="p-2 md:px-4 md:py-2"
+            title={t('schedules.list')}
           >
-            {t('schedules.list')}
+            <List className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('schedules.list')}</span>
           </Button>
           <Button
             variant={view === 'calendar' ? 'default' : 'outline'}
             onClick={() => setView('calendar')}
+            className="p-2 md:px-4 md:py-2"
+            title={t('schedules.calendar')}
           >
-            <Calendar className="h-4 w-4 mr-2" />
-            {t('schedules.calendar')}
+            <Calendar className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('schedules.calendar')}</span>
           </Button>
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('schedules.addSchedule')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('schedules.addSchedule')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('schedules.addSchedule')}</span>
           </Button>
         </div>
       </div>
@@ -1610,100 +1698,13 @@ export default function SchedulesPage() {
           </div>
         </>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.room')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.class')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.teachers')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.startTime')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.endTime')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('schedules.day')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase">{t('common.actions')}</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedSchedules.map((schedule) => (
-                  <tr key={schedule.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">
-                      {schedule.classes?.rooms?.name || schedule.classes?.room_id ? 
-                        rooms.find(r => r.id === schedule.classes?.room_id)?.name || '-' : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                      {schedule.classes?.name || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {schedule.classes?.teachers_ids
-                        ? getTeacherNames(schedule.classes.teachers_ids)
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {schedule.time_slot}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {schedule.end_time || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {weekDays[schedule.week_day]}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(schedule)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(schedule.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex items-center gap-4">
-              <label className="text-sm text-gray-700">{t('common.show')}:</label>
-              <Select
-                value={itemsPerPage.toString()}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value))
-                  setCurrentPage(1)
-                }}
-                className="w-20"
-              >
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                {t('common.previous')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                {t('common.next')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <DataTable
+          columns={columns}
+          data={schedules}
+          initialPageSize={10}
+          stickyFirstColumn={true}
+          maxHeight="calc(100vh-300px)"
+        />
       )}
 
       {/* Add/Edit Modal */}

@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatAge, formatDate } from '@/lib/utils'
-import { Plus, Edit, Trash2, Search, FileText, ArrowUpDown, ArrowUp, ArrowDown, Upload } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, FileText, Upload } from 'lucide-react'
 import { decode as decodeWindows1251 } from 'windows-1251'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface Student {
   id: string
@@ -65,10 +67,175 @@ export default function StudentsPage() {
   const [maxAgeYears, setMaxAgeYears] = useState<string>('')
   const [maxAgeMonths, setMaxAgeMonths] = useState<string>('')
   const [courseFilter, setCourseFilter] = useState<string>('all')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
-  const [sortBy, setSortBy] = useState<string>('created_at')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [itemsPerPage] = useState(10)
+
+  const getClassName = (classId: string | null | undefined): string | null => {
+    if (!classId) return null
+    const foundClass = classes.find(c => c.id === classId)
+    return foundClass?.name || null
+  }
+  
+  // Column definitions for DataTable
+  const columns: ColumnDef<Student>[] = useMemo(() => [
+    {
+      accessorKey: 'student_full_name',
+      header: t('students.student'),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="font-medium">
+          {row.original.student_first_name} {row.original.student_last_name}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'age',
+      header: 'Вік',
+      enableSorting: true,
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.student_date_of_birth ? new Date(rowA.original.student_date_of_birth).getTime() : 0
+        const b = rowB.original.student_date_of_birth ? new Date(rowB.original.student_date_of_birth).getTime() : 0
+        return a - b
+      },
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.student_date_of_birth ? formatAge(row.original.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort')) : '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'parent_name',
+      header: 'Батьки',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.parent_first_name} {row.original.parent_middle_name || ''}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Телефон',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.phone}</div>
+      ),
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.email || '-'}</div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: t('students.status'),
+      cell: ({ row }) => {
+        const status = row.original.status
+        return (
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            status === 'active' ? 'bg-green-100 text-green-800' :
+            status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+            'bg-yellow-100 text-yellow-800'
+          }`}>
+            {status === 'active' ? t('common.active') :
+             status === 'inactive' ? t('common.inactive') :
+             status === 'moved' ? t('common.moved') :
+             t('common.dontDisturb')}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'enrolled_classes',
+      header: 'Зареєстровані класи',
+      cell: ({ row }) => {
+        const student = row.original
+        const looksLikeUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+        const classNames = student.enrolled_class_ids && Array.isArray(student.enrolled_class_ids) && student.enrolled_class_ids.length > 0
+          ? student.enrolled_class_ids
+              .map(item => getClassName(item) ?? (looksLikeUUID(item) ? null : item))
+              .filter((name): name is string => !!name)
+          : []
+        return (
+          <div className="text-sm text-gray-500">
+            {classNames.length > 0 ? classNames.join(', ') : '-'}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'interested_classes',
+      header: 'Зацікавлені класи',
+      cell: ({ row }) => {
+        const student = row.original
+        const looksLikeUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+        const classNames = student.interested_class_ids && Array.isArray(student.interested_class_ids) && student.interested_class_ids.length > 0
+          ? student.interested_class_ids
+              .map(item => getClassName(item) ?? (looksLikeUUID(item) ? null : item))
+              .filter((name): name is string => !!name)
+          : []
+        return (
+          <div className="text-sm text-gray-500">
+            {classNames.length > 0 ? classNames.join(', ') : '-'}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'comment',
+      header: 'Коментар',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 max-w-xs">
+          {row.original.comment ? (
+            <span className="truncate block" title={row.original.comment}>
+              {row.original.comment}
+            </span>
+          ) : (
+            '-'
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'created_at',
+      header: 'Створено',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 whitespace-nowrap">
+          {formatDate(row.original.created_at)}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Дії',
+      cell: ({ row }) => {
+        const student = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleViewSummary(student)}
+              className="text-green-600 hover:text-green-900"
+              title={t('students.viewSummary')}
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleEdit(student)}
+              className="text-blue-600 hover:text-blue-900"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(student.id)}
+              className="text-red-600 hover:text-red-900"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, classes])
 
   const [formData, setFormData] = useState({
     student_first_name: '',
@@ -526,59 +693,8 @@ export default function StudentsPage() {
     return matchesSearch && matchesStatus && matchesAgeRange && matchesCourse
   })
 
-  const sortedStudents = [...filteredStudents].sort((a, b) => {
-    let aValue: string | number = a[sortBy as keyof Student] as string | number
-    let bValue: string | number = b[sortBy as keyof Student] as string | number
-
-    if (sortBy === 'age') {
-      aValue = a.student_date_of_birth ? new Date(a.student_date_of_birth).getTime() : 0
-      bValue = b.student_date_of_birth ? new Date(b.student_date_of_birth).getTime() : 0
-    } else if (sortBy === 'student_full_name') {
-      aValue = `${a.student_first_name} ${a.student_last_name}`
-      bValue = `${b.student_first_name} ${b.student_last_name}`
-    }
-
-    // Handle null/undefined values
-    if (aValue == null) aValue = ''
-    if (bValue == null) bValue = ''
-
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1
-    } else {
-      return aValue < bValue ? 1 : -1
-    }
-  })
-
-  const paginatedStudents = sortedStudents.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(sortedStudents.length / itemsPerPage)
-
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortBy(field)
-      setSortOrder('asc')
-    }
-  }
-
-  const getSortIcon = (field: string) => {
-    if (sortBy !== field) {
-      return <ArrowUpDown className="h-4 w-4 inline ml-1 text-gray-400" />
-    }
-    return sortOrder === 'asc' 
-      ? <ArrowUp className="h-4 w-4 inline ml-1 text-gray-600" />
-      : <ArrowDown className="h-4 w-4 inline ml-1 text-gray-600" />
-  }
-
-  const getClassName = (classId: string | null | undefined): string | null => {
-    if (!classId) return null
-    const foundClass = classes.find(c => c.id === classId)
-    return foundClass?.name || null
-  }
+  // DataTable handles sorting internally, so we just pass filteredStudents
+  const sortedStudents = filteredStudents
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -614,9 +730,9 @@ export default function StudentsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('students.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate min-w-0">{t('students.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -625,34 +741,34 @@ export default function StudentsPage() {
             />
           )}
           {isOwner && (
-            <Button onClick={() => setIsImportModalOpen(true)} variant="outline">
-              <Upload className="h-4 w-4 mr-2" />
-              Імпорт
+            <Button onClick={() => setIsImportModalOpen(true)} variant="outline" className="p-2 md:px-4 md:py-2" title="Імпорт">
+              <Upload className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Імпорт</span>
             </Button>
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('students.addStudent')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('students.addStudent')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('students.addStudent')}</span>
           </Button>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={t('students.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('students.allStatuses')}</option>
             {[
@@ -671,7 +787,7 @@ export default function StudentsPage() {
           <Select
             value={courseFilter}
             onChange={(e) => setCourseFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('common.all')} {t('dashboard.classes')}</option>
             {classes
@@ -684,7 +800,7 @@ export default function StudentsPage() {
               ))}
           </Select>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('students.age')} {t('common.from')}
@@ -737,189 +853,13 @@ export default function StudentsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
-                  onClick={() => handleSort('student_full_name')}
-                >
-                  {t('students.student')}
-                  {getSortIcon('student_full_name')}
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
-                  onClick={() => handleSort('age')}
-                >
-                  Вік
-                  {getSortIcon('age')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Батьки
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Телефон
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('students.status')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Зареєстровані класи
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Зацікавлені класи
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Коментар
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200"
-                  onClick={() => handleSort('created_at')}
-                >
-                  Створено
-                  {getSortIcon('created_at')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedStudents.map((student) => (
-                <tr key={student.id}>
-                  <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
-                    {student.student_first_name} {student.student_last_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.student_date_of_birth ? formatAge(student.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort')) : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.parent_first_name} {student.parent_middle_name || ''}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.phone}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.email || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      student.status === 'active' ? 'bg-green-100 text-green-800' :
-                      student.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {student.status === 'active' ? t('common.active') :
-                       student.status === 'inactive' ? t('common.inactive') :
-                       student.status === 'moved' ? t('common.moved') :
-                       t('common.dontDisturb')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {student.enrolled_class_ids && Array.isArray(student.enrolled_class_ids) && student.enrolled_class_ids.length > 0
-                      ? (() => {
-                          const looksLikeUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-                          const classNames = student.enrolled_class_ids
-                            .map(item => getClassName(item) ?? (looksLikeUUID(item) ? null : item))
-                            .filter((name): name is string => !!name)
-                          return classNames.length > 0 ? classNames.join(', ') : '-'
-                        })()
-                      : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {student.interested_class_ids && Array.isArray(student.interested_class_ids) && student.interested_class_ids.length > 0
-                      ? (() => {
-                          const looksLikeUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-                          const classNames = student.interested_class_ids
-                            .map(item => getClassName(item) ?? (looksLikeUUID(item) ? null : item))
-                            .filter((name): name is string => !!name)
-                          return classNames.length > 0 ? classNames.join(', ') : '-'
-                        })()
-                      : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
-                    {student.comment ? (
-                      <span className="truncate block" title={student.comment}>
-                        {student.comment}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(student.created_at)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleViewSummary(student)}
-                      className="text-green-600 hover:text-green-900 mr-3"
-                      title={t('students.viewSummary')}
-                    >
-                      <FileText className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(student)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(student.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
-            <Select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="w-20"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </Select>
-            <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedStudents.length)} з {sortedStudents.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Попередня
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Наступна
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={sortedStudents}
+        initialPageSize={itemsPerPage}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
 
       {/* Add/Edit Modal */}
       <Modal

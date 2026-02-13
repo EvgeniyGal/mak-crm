@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface PaymentData {
   student_id: string
@@ -50,10 +52,7 @@ export default function StudentPaymentsPage() {
   const [availableLessonsFilter, setAvailableLessonsFilter] = useState<string>('all')
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
-  const [sortBy, setSortBy] = useState<string>('student_name')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage] = useState(10)
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
@@ -281,42 +280,99 @@ export default function StudentPaymentsPage() {
     return matchesSearch && matchesPackage && matchesType && matchesAvailable && matchesDateRange
   })
 
-  const sortedPayments = [...filteredPayments].sort((a, b) => {
-    let aValue: string | number
-    let bValue: string | number
+  // DataTable handles sorting internally, so we just pass filteredPayments
+  const sortedPayments = filteredPayments
 
-    if (sortBy === 'student_name') {
-      aValue = a.student_name
-      bValue = b.student_name
-    } else if (sortBy === 'package_type') {
-      aValue = a.package_type_name || ''
-      bValue = b.package_type_name || ''
-    } else if (sortBy === 'lessons') {
-      aValue = a.lesson_count || 0
-      bValue = b.lesson_count || 0
-    } else if (sortBy === 'available_lessons') {
-      aValue = a.available_lesson_count
-      bValue = b.available_lesson_count
-    } else if (sortBy === 'payment_date') {
-      aValue = a.payment_date ? new Date(a.payment_date).getTime() : 0
-      bValue = b.payment_date ? new Date(b.payment_date).getTime() : 0
-    } else {
-      return 0
-    }
-
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1
-    } else {
-      return aValue < bValue ? 1 : -1
-    }
-  })
-
-  const paginatedPayments = sortedPayments.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(sortedPayments.length / itemsPerPage)
+  // Column definitions for DataTable
+  const columns: ColumnDef<PaymentData>[] = useMemo(() => [
+    {
+      accessorKey: 'student_name',
+      header: 'Студент',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="font-medium">{row.original.student_name}</div>
+      ),
+    },
+    {
+      accessorKey: 'package_type_name',
+      header: 'Тип пакету',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.package_type_name || '-'}</div>
+      ),
+    },
+    {
+      accessorKey: 'lesson_count',
+      header: 'Уроків у пакеті',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.lesson_count !== null ? row.original.lesson_count : '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'available_lesson_count',
+      header: 'Доступно уроків',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const count = row.original.available_lesson_count
+        return (
+          <span className={`px-2 py-1 text-xs rounded-full font-medium whitespace-nowrap ${
+            count === 0 ? 'bg-red-100 text-red-800' :
+            count <= 3 ? 'bg-yellow-100 text-yellow-800' :
+            'bg-green-100 text-green-800'
+          }`}>
+            {count}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'payment_type',
+      header: 'Тип платежу',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.payment_type || '-'}</div>
+      ),
+    },
+    {
+      accessorKey: 'payment_date',
+      header: 'Дата платежу',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 whitespace-nowrap">
+          {row.original.payment_date ? formatDate(row.original.payment_date) : '-'}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Дії',
+      cell: ({ row }) => {
+        const payment = row.original
+        return (
+          <div>
+            {payment.available_lesson_count <= 3 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    student_id: payment.student_id,
+                  }))
+                  setEditingPaymentId(payment.payment_id || null)
+                  setIsModalOpen(true)
+                }}
+              >
+                Створити/Оновити платіж
+              </Button>
+            )}
+          </div>
+        )
+      },
+    },
+  ], [setFormData, setEditingPaymentId, setIsModalOpen])
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -448,9 +504,9 @@ export default function StudentPaymentsPage() {
           </div>
         </form>
       </Modal>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{t('studentPayments.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold truncate min-w-0">{t('studentPayments.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -458,29 +514,29 @@ export default function StudentPaymentsPage() {
               disabled={sortedPayments.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('payments.addPayment')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('payments.addPayment')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('payments.addPayment')}</span>
           </Button>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={t('studentPayments.searchPlaceholder') || "Пошук за ім'ям студента або типом пакету..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
           <Select
             value={packageFilter}
             onChange={(e) => setPackageFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('common.allPackageTypes')}</option>
             {packageTypes.map((pkg) => (
@@ -492,7 +548,7 @@ export default function StudentPaymentsPage() {
           <Select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('common.allPaymentTypes')}</option>
             <option value="cash">{t('payments.cash')}</option>
@@ -527,149 +583,16 @@ export default function StudentPaymentsPage() {
             className="w-48"
           />
         </div>
-        <div className="flex gap-4 items-center">
-          <label className="text-sm font-medium">{t('common.sortBy')}</label>
-          <Select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="w-48"
-          >
-            <option value="student_name">Ім&apos;ям студента</option>
-            <option value="package_type">Типом пакету</option>
-            <option value="lessons">Кількістю уроків</option>
-            <option value="available_lessons">Доступними уроками</option>
-            <option value="payment_date">Датою платежу</option>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-          >
-            {sortOrder === 'asc' ? '↑' : '↓'}
-          </Button>
-        </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  Студент
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип пакету
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Уроків у пакеті
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Доступно уроків
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Тип платежу
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дата платежу
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedPayments.map((payment) => (
-                <tr key={payment.student_id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium sticky left-0 bg-white z-10">
-                    {payment.student_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.package_type_name || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.lesson_count !== null ? payment.lesson_count : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                      payment.available_lesson_count === 0 ? 'bg-red-100 text-red-800' :
-                      payment.available_lesson_count <= 3 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {payment.available_lesson_count}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.payment_type || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.payment_date ? formatDate(payment.payment_date) : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {payment.available_lesson_count <= 3 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            student_id: payment.student_id,
-                          }))
-                          setEditingPaymentId(payment.payment_id || null)
-                          setIsModalOpen(true)
-                        }}
-                      >
-                        Створити/Оновити платіж
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">{t('common.show')}</label>
-            <Select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="w-20"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </Select>
-            <span className="text-sm text-gray-700">
-              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedPayments.length)} {t('common.of')} {sortedPayments.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              {t('common.previous')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              {t('common.next')}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={sortedPayments}
+        initialPageSize={itemsPerPage}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
     </div>
   )
 }

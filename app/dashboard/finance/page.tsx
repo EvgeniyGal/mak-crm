@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,9 @@ import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
 import { formatDate } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
+import { Calendar } from 'lucide-react'
 
 interface FinanceRow {
   date: string
@@ -351,6 +354,151 @@ export default function FinancePage() {
   const totalExpendituresCash = financeData.reduce((sum, row) => sum + row.expendituresCash, 0)
   const totalExpendituresCard = financeData.reduce((sum, row) => sum + row.expendituresCard, 0)
 
+  // Prepare data with totals row
+  const tableData = useMemo(() => {
+    if (financeData.length === 0) return []
+    
+    const data = [...financeData]
+    const lastRow = financeData[financeData.length - 1]
+    data.push({
+      date: t('finance.total'),
+      incomesCash: totalIncomesCash,
+      incomesCard: totalIncomesCard,
+      expendituresCash: totalExpendituresCash,
+      expendituresCard: totalExpendituresCard,
+      balanceCash: lastRow.balanceCash,
+      balanceCard: lastRow.balanceCard,
+      accumulatedBalanceCash: lastRow.accumulatedBalanceCash,
+      accumulatedBalanceCard: lastRow.accumulatedBalanceCard,
+      totalBalance: lastRow.totalBalance,
+    } as FinanceRow)
+    return data
+  }, [financeData, totalIncomesCash, totalIncomesCard, totalExpendituresCash, totalExpendituresCard, t])
+
+  // Column definitions for DataTable
+  const columns: ColumnDef<FinanceRow>[] = useMemo(() => [
+    {
+      accessorKey: 'date',
+      header: t('finance.date'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm ${isTotalRow ? 'font-semibold bg-gray-50' : 'text-gray-500'}`}>
+            {isTotalRow ? row.original.date : formatDate(row.original.date)}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'incomesCash',
+      header: t('finance.incomesCash'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'text-green-600 bg-gray-50' : 'text-green-600'}`}>
+            {row.original.incomesCash.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'incomesCard',
+      header: t('finance.incomesCard'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'text-green-600 bg-gray-50' : 'text-green-600'}`}>
+            {row.original.incomesCard.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'expendituresCash',
+      header: t('finance.expendituresCash'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'text-red-600 bg-gray-50' : 'text-red-600'}`}>
+            {row.original.expendituresCash.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'expendituresCard',
+      header: t('finance.expendituresCard'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'text-red-600 bg-gray-50' : 'text-red-600'}`}>
+            {row.original.expendituresCard.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'balanceCash',
+      header: t('finance.balanceCash'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'bg-gray-50' : ''}`}>
+            {isTotalRow ? '-' : `${row.original.balanceCash.toFixed(2)} ${t('common.uah')}`}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'balanceCard',
+      header: t('finance.balanceCard'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'bg-gray-50' : ''}`}>
+            {isTotalRow ? '-' : `${row.original.balanceCard.toFixed(2)} ${t('common.uah')}`}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'accumulatedBalanceCash',
+      header: t('finance.accumulatedBalanceCash'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'bg-gray-50' : ''}`}>
+            {row.original.accumulatedBalanceCash.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'accumulatedBalanceCard',
+      header: t('finance.accumulatedBalanceCard'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm font-medium ${isTotalRow ? 'bg-gray-50' : ''}`}>
+            {row.original.accumulatedBalanceCard.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'totalBalance',
+      header: t('finance.totalBalance'),
+      cell: ({ row }) => {
+        const isTotalRow = row.original.date === t('finance.total')
+        return (
+          <div className={`text-sm ${isTotalRow ? 'font-bold bg-gray-50' : 'font-bold'}`}>
+            {row.original.totalBalance.toFixed(2)} {t('common.uah')}
+          </div>
+        )
+      },
+    },
+  ], [t])
+
   const handleExportXLS = () => {
     const columns: ExportColumn<FinanceRow>[] = [
       { 
@@ -359,39 +507,39 @@ export default function FinancePage() {
       },
       { 
         header: t('finance.incomesCash'), 
-        accessor: (row) => `${row.incomesCash.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.incomesCash.toFixed(2))
       },
       { 
         header: t('finance.incomesCard'), 
-        accessor: (row) => `${row.incomesCard.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.incomesCard.toFixed(2))
       },
       { 
         header: t('finance.expendituresCash'), 
-        accessor: (row) => `${row.expendituresCash.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.expendituresCash.toFixed(2))
       },
       { 
         header: t('finance.expendituresCard'), 
-        accessor: (row) => `${row.expendituresCard.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.expendituresCard.toFixed(2))
       },
       { 
         header: t('finance.balanceCash'), 
-        accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCash.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => row.date === t('finance.total') ? null : Number(row.balanceCash.toFixed(2))
       },
       { 
         header: t('finance.balanceCard'), 
-        accessor: (row) => row.date === t('finance.total') ? '-' : `${row.balanceCard.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => row.date === t('finance.total') ? null : Number(row.balanceCard.toFixed(2))
       },
       { 
         header: t('finance.accumulatedBalanceCash'), 
-        accessor: (row) => `${row.accumulatedBalanceCash.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.accumulatedBalanceCash.toFixed(2))
       },
       { 
         header: t('finance.accumulatedBalanceCard'), 
-        accessor: (row) => `${row.accumulatedBalanceCard.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.accumulatedBalanceCard.toFixed(2))
       },
       { 
         header: t('finance.totalBalance'), 
-        accessor: (row) => `${row.totalBalance.toFixed(2)} ${t('common.uah')}` 
+        accessor: (row) => Number(row.totalBalance.toFixed(2))
       },
     ]
 
@@ -487,8 +635,8 @@ export default function FinancePage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('dashboard.finance')}</h1>
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate min-w-0">{t('dashboard.finance')}</h1>
         <ExportButton 
           onExportXLS={handleExportXLS}
           onExportCSV={handleExportCSV}
@@ -498,59 +646,73 @@ export default function FinancePage() {
 
       {/* Date Range and Quick Buttons */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4 flex-wrap items-end">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.from')}</label>
-            <Input
-              type="date"
-              value={dateRangeStart}
-              onChange={(e) => setDateRangeStart(e.target.value)}
-              onBlur={(e) => {
-                // Apply changes only on blur - update both local and debounced state
-                const newValue = e.target.value
-                setDateRangeStart(newValue)
-                setDebouncedDateStart(newValue)
-              }}
-              className="w-48"
-            />
+        <div className="flex flex-col gap-4">
+          {/* First row: Date inputs and buttons */}
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="w-full md:w-48">
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.from')}</label>
+              <Input
+                type="date"
+                value={dateRangeStart}
+                onChange={(e) => setDateRangeStart(e.target.value)}
+                onBlur={(e) => {
+                  // Apply changes only on blur - update both local and debounced state
+                  const newValue = e.target.value
+                  setDateRangeStart(newValue)
+                  setDebouncedDateStart(newValue)
+                }}
+                className="w-full"
+              />
+            </div>
+            <div className="w-full md:w-48">
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.to')}</label>
+              <Input
+                type="date"
+                value={dateRangeEnd}
+                onChange={(e) => setDateRangeEnd(e.target.value)}
+                onBlur={(e) => {
+                  // Apply changes only on blur - update both local and debounced state
+                  const newValue = e.target.value
+                  setDateRangeEnd(newValue)
+                  setDebouncedDateEnd(newValue)
+                }}
+                className="w-full"
+              />
+            </div>
+            <div className="flex gap-2 w-full md:w-auto flex-shrink-0">
+              <Button onClick={getCurrentWeek} variant="outline" className="p-2 md:px-4 md:py-2" title={t('dashboard.thisWeek')}>
+                <Calendar className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">{t('dashboard.thisWeek')}</span>
+              </Button>
+              <Button onClick={getCurrentMonth} variant="outline" className="p-2 md:px-4 md:py-2" title={t('dashboard.thisMonth')}>
+                <Calendar className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">{t('dashboard.thisMonth')}</span>
+              </Button>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.to')}</label>
-            <Input
-              type="date"
-              value={dateRangeEnd}
-              onChange={(e) => setDateRangeEnd(e.target.value)}
-              onBlur={(e) => {
-                // Apply changes only on blur - update both local and debounced state
-                const newValue = e.target.value
-                setDateRangeEnd(newValue)
-                setDebouncedDateEnd(newValue)
-              }}
-              className="w-48"
-            />
-          </div>
-          <div>
+          {/* Second row: Beginning Balance */}
+          <div className="w-full">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('finance.beginningBalance')}</label>
-            <div className="flex gap-2">
-              <div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
                 <label className="block text-xs text-gray-500 mb-1">{t('common.cash')}</label>
                 <Input
                   type="number"
                   value={initialBalanceCash}
                   onChange={(e) => setInitialBalanceCash(parseFloat(e.target.value) || 0)}
-                  className="w-32"
+                  className="w-full"
                   placeholder="0"
                   step="0.01"
                   min="0"
                 />
               </div>
-              <div>
+              <div className="flex-1">
                 <label className="block text-xs text-gray-500 mb-1">{t('common.card')}</label>
                 <Input
                   type="number"
                   value={initialBalanceCard}
                   onChange={(e) => setInitialBalanceCard(parseFloat(e.target.value) || 0)}
-                  className="w-32"
+                  className="w-full"
                   placeholder="0"
                   step="0.01"
                   min="0"
@@ -558,128 +720,17 @@ export default function FinancePage() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={getCurrentWeek} variant="outline">
-              {t('dashboard.thisWeek')}
-            </Button>
-            <Button onClick={getCurrentMonth} variant="outline">
-              {t('dashboard.thisMonth')}
-            </Button>
-          </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  {t('finance.date')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.incomesCash')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.incomesCard')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.expendituresCash')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.expendituresCard')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.balanceCash')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.balanceCard')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.accumulatedBalanceCash')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.accumulatedBalanceCard')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('finance.totalBalance')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {financeData.map((row, index) => (
-                <tr key={index}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 sticky left-0 bg-white z-10">
-                    {formatDate(row.date)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                    {row.incomesCash.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                    {row.incomesCard.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                    {row.expendituresCash.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                    {row.expendituresCard.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {row.balanceCash.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {row.balanceCard.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {row.accumulatedBalanceCash.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {row.accumulatedBalanceCard.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
-                    {row.totalBalance.toFixed(2)} {t('common.uah')}
-                  </td>
-                </tr>
-              ))}
-              {financeData.length > 0 && (
-                <tr className="bg-gray-50 font-semibold">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm sticky left-0 bg-gray-50 z-10">
-                    {t('finance.total')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                    {totalIncomesCash.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                    {totalIncomesCard.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                    {totalExpendituresCash.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                    {totalExpendituresCard.toFixed(2)} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    -
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    -
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {financeData[financeData.length - 1]?.accumulatedBalanceCash.toFixed(2) || '0.00'} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {financeData[financeData.length - 1]?.accumulatedBalanceCard.toFixed(2) || '0.00'} {t('common.uah')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {financeData[financeData.length - 1]?.totalBalance.toFixed(2) || '0.00'} {t('common.uah')}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={tableData}
+        initialPageSize={10}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
     </div>
   )
 }

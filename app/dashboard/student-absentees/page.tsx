@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { formatAge, formatDate } from '@/lib/utils'
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface Student {
   id: string
@@ -67,10 +68,6 @@ export default function StudentAbsenteesPage() {
   const [minAgeMonths, setMinAgeMonths] = useState('')
   const [maxAgeYears, setMaxAgeYears] = useState('')
   const [maxAgeMonths, setMaxAgeMonths] = useState('')
-  const [sortBy, setSortBy] = useState<string>('student_name')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   // Helper to detect UUID-like strings (to avoid rendering raw IDs)
   const isUUIDLike = (str: string) =>
@@ -304,42 +301,102 @@ export default function StudentAbsenteesPage() {
     return matchesSearch && matchesAgeRange
   })
 
-  const sortedStudents = [...filteredStudents].sort((a, b) => {
-    let aValue: string | number | null
-    let bValue: string | number | null
-
-    if (sortBy === 'student_name') {
-      aValue = `${a.student_first_name} ${a.student_last_name}`
-      bValue = `${b.student_first_name} ${b.student_last_name}`
-    } else if (sortBy === 'age') {
-      aValue = new Date(a.student_date_of_birth).getTime()
-      bValue = new Date(b.student_date_of_birth).getTime()
-    } else if (sortBy === 'last_attendance') {
-      aValue = a.last_attendance_date ? new Date(a.last_attendance_date).getTime() : 0
-      bValue = b.last_attendance_date ? new Date(b.last_attendance_date).getTime() : 0
-    } else if (sortBy === 'consecutive_absences') {
-      aValue = a.consecutive_absences
-      bValue = b.consecutive_absences
-    } else if (sortBy === 'total_absences') {
-      aValue = a.total_absences
-      bValue = b.total_absences
-    } else {
-      return 0
-    }
-
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1
-    } else {
-      return aValue < bValue ? 1 : -1
-    }
-  })
-
-  const paginatedStudents = sortedStudents.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(sortedStudents.length / itemsPerPage)
+  // Column definitions for DataTable
+  const columns: ColumnDef<AbsenteeData>[] = useMemo(() => [
+    {
+      id: 'student_name',
+      header: 'Студент',
+      enableSorting: true,
+      sortingFn: (rowA, rowB) => {
+        const a = `${rowA.original.student_first_name} ${rowA.original.student_last_name}`
+        const b = `${rowB.original.student_first_name} ${rowB.original.student_last_name}`
+        return a.localeCompare(b, 'uk')
+      },
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">
+          {row.original.student_first_name} {row.original.student_last_name}
+        </div>
+      ),
+    },
+    {
+      id: 'age',
+      header: 'Вік',
+      enableSorting: true,
+      sortingFn: (rowA, rowB) => {
+        const a = new Date(rowA.original.student_date_of_birth).getTime()
+        const b = new Date(rowB.original.student_date_of_birth).getTime()
+        return a - b
+      },
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {formatAge(row.original.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort'))}
+        </div>
+      ),
+    },
+    {
+      id: 'parent_name',
+      header: 'Батьки',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.parent_first_name} {row.original.parent_middle_name || ''}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Телефон',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.phone}</div>
+      ),
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.email || '-'}</div>
+      ),
+    },
+    {
+      id: 'enrolled_classes',
+      header: 'Зареєстровані класи',
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.enrolled_classes.length > 0
+            ? row.original.enrolled_classes.join(', ')
+            : '-'}
+        </div>
+      ),
+    },
+    {
+      id: 'last_attendance',
+      header: 'Остання відвідуваність',
+      enableSorting: true,
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.last_attendance_date ? new Date(rowA.original.last_attendance_date).getTime() : 0
+        const b = rowB.original.last_attendance_date ? new Date(rowB.original.last_attendance_date).getTime() : 0
+        return a - b
+      },
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.last_attendance_date ? formatDate(row.original.last_attendance_date) : 'Ніколи'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'consecutive_absences',
+      header: 'Пропуски підряд',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+          row.original.consecutive_absences === 0 ? 'bg-yellow-100 text-yellow-800' :
+          row.original.consecutive_absences <= 3 ? 'bg-orange-100 text-orange-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {row.original.consecutive_absences}
+        </span>
+      ),
+    },
+  ], [t])
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -349,7 +406,7 @@ export default function StudentAbsenteesPage() {
       { header: t('studentAbsentees.enrolledClasses'), accessor: (row) => row.enrolled_classes.join(', ') || '-' },
       { header: t('studentAbsentees.lastAttendance'), accessor: (row) => row.last_attendance_date ? formatDate(row.last_attendance_date) : t('common.no') },
     ]
-    exportToXLS(sortedStudents, columns, 'student-absentees')
+    exportToXLS(filteredStudents, columns, 'student-absentees')
   }
 
   const handleExportCSV = () => {
@@ -360,7 +417,7 @@ export default function StudentAbsenteesPage() {
       { header: t('studentAbsentees.enrolledClasses'), accessor: (row) => row.enrolled_classes.join(', ') || '-' },
       { header: t('studentAbsentees.lastAttendance'), accessor: (row) => row.last_attendance_date ? formatDate(row.last_attendance_date) : t('common.no') },
     ]
-    exportToCSV(sortedStudents, columns, 'student-absentees')
+    exportToCSV(filteredStudents, columns, 'student-absentees')
   }
 
   if (loading) {
@@ -369,20 +426,22 @@ export default function StudentAbsenteesPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{t('studentAbsentees.title')}</h1>
-        {isOwner && (
-          <ExportButton 
-            onExportXLS={handleExportXLS}
-            onExportCSV={handleExportCSV}
-            disabled={sortedStudents.length === 0}
-          />
-        )}
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold truncate min-w-0">{t('studentAbsentees.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
+          {isOwner && (
+            <ExportButton 
+              onExportXLS={handleExportXLS}
+              onExportCSV={handleExportCSV}
+              disabled={filteredStudents.length === 0}
+            />
+          )}
+        </div>
       </div>
 
       {/* Date Range and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Дата від
@@ -402,6 +461,7 @@ export default function StudentAbsenteesPage() {
                   e.currentTarget.blur()
                 }
               }}
+              className="w-full"
             />
           </div>
           <div>
@@ -423,10 +483,11 @@ export default function StudentAbsenteesPage() {
                   e.currentTarget.blur()
                 }
               }}
+              className="w-full"
             />
           </div>
         </div>
-        <div className="flex gap-4 flex-wrap">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Вік від
@@ -476,20 +537,20 @@ export default function StudentAbsenteesPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder="Пошук за ім'ям, батьком, телефоном або email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
           <Select
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">Всі класи</option>
             {classes.map((cls) => (
@@ -502,186 +563,13 @@ export default function StudentAbsenteesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
-                  onClick={() => {
-                    if (sortBy === 'student_name') {
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                    } else {
-                      setSortBy('student_name')
-                      setSortOrder('asc')
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    Студент
-                    {sortBy === 'student_name' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                    ) : (
-                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
-                  onClick={() => {
-                    if (sortBy === 'age') {
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                    } else {
-                      setSortBy('age')
-                      setSortOrder('asc')
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    Вік
-                    {sortBy === 'age' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                    ) : (
-                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Батьки
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Телефон
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Зареєстровані класи
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
-                  onClick={() => {
-                    if (sortBy === 'last_attendance') {
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                    } else {
-                      setSortBy('last_attendance')
-                      setSortOrder('asc')
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    Остання відвідуваність
-                    {sortBy === 'last_attendance' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                    ) : (
-                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
-                  onClick={() => {
-                    if (sortBy === 'consecutive_absences') {
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                    } else {
-                      setSortBy('consecutive_absences')
-                      setSortOrder('asc')
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    Пропуски підряд
-                    {sortBy === 'consecutive_absences' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                    ) : (
-                      <ArrowUpDown className="h-4 w-4 text-gray-400" />
-                    )}
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedStudents.map((student) => (
-                <tr key={student.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium sticky left-0 bg-white z-10">
-                    {student.student_first_name} {student.student_last_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatAge(student.student_date_of_birth, t('common.yearsShort'), t('common.monthsShort'))}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.parent_first_name} {student.parent_middle_name || ''}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.phone}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.email || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {student.enrolled_classes.length > 0
-                      ? student.enrolled_classes.join(', ')
-                      : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.last_attendance_date ? formatDate(student.last_attendance_date) : 'Ніколи'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                      student.consecutive_absences === 0 ? 'bg-yellow-100 text-yellow-800' :
-                      student.consecutive_absences <= 3 ? 'bg-orange-100 text-orange-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {student.consecutive_absences}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
-            <Select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="w-20"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </Select>
-            <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedStudents.length)} з {sortedStudents.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Попередня
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Наступна
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filteredStudents}
+        initialPageSize={10}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
     </div>
   )
 }

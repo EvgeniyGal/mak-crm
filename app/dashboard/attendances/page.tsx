@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface Attendance {
   id: string
@@ -76,8 +78,6 @@ export default function AttendancesPage() {
   const [classFilter, setClassFilter] = useState<string>('all')
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   const [formData, setFormData] = useState({
     date: '',
@@ -544,7 +544,7 @@ export default function AttendancesPage() {
     }
   }
 
-  const handleEdit = async (attendance: Attendance) => {
+  const handleEdit = useCallback(async (attendance: Attendance) => {
     setEditingAttendance(attendance)
     setFormData({
       date: attendance.date,
@@ -562,9 +562,9 @@ export default function AttendancesPage() {
     }
 
     setIsModalOpen(true)
-  }
+  }, [classes, students, fetchCourseSchedules, fetchStudentPresences])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Ви впевнені, що хочете видалити цю відвідуваність? Це також змінить кількість доступних уроків.')) return
 
     try {
@@ -606,7 +606,7 @@ export default function AttendancesPage() {
       console.error('Error deleting attendance:', error)
       alert('Помилка видалення відвідуваності')
     }
-  }
+  }, [supabase, fetchAttendances, getStudentLessonsForClass])
 
   const resetForm = () => {
     setFormData({
@@ -644,16 +644,111 @@ export default function AttendancesPage() {
     return matchesSearch && matchesClass && matchesDateRange
   })
 
-  const paginatedAttendances = filteredAttendances.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(filteredAttendances.length / itemsPerPage)
-
   const getClassName = (classId: string) => {
     return classes.find(c => c.id === classId)?.name || classId
   }
+
+  // Column definitions for DataTable
+  const columns: ColumnDef<Attendance>[] = useMemo(() => [
+    {
+      accessorKey: 'date',
+      header: 'Дата',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">
+          {formatDate(row.original.date)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'class_id',
+      header: 'Курс',
+      cell: ({ row }) => {
+        const className = getClassName(row.original.class_id)
+        return <div className="font-medium">{className}</div>
+      },
+    },
+    {
+      id: 'students',
+      header: 'Студенти',
+      cell: ({ row }) => {
+        const studentsList = attendanceStudents[row.original.id] || []
+        return (
+          <div className="flex flex-col gap-1 max-w-xs">
+            {studentsList.length > 0 ? (
+              studentsList.map((student, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                    student.status === 'present' ? 'bg-green-500' :
+                    student.status === 'absent' ? 'bg-red-500' :
+                    'bg-yellow-500'
+                  }`}></span>
+                  <span className="truncate text-sm">{student.name}</span>
+                </div>
+              ))
+            ) : (
+              <span className="text-gray-400 text-sm">-</span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'stats',
+      header: 'Статистика',
+      cell: ({ row }) => {
+        const attendanceStats = stats[row.original.id] || { present: 0, absent: 0, validReason: 0 }
+        return (
+          <div className="flex gap-2 flex-wrap">
+            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+              Присутні: {attendanceStats.present}
+            </span>
+            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+              Відсутні: {attendanceStats.absent}
+            </span>
+            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+              Поважна причина: {attendanceStats.validReason}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'created_at',
+      header: 'Створено',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {formatDate(row.original.created_at)}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Дії',
+      cell: ({ row }) => {
+        const attendance = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleEdit(attendance)}
+              className="text-blue-600 hover:text-blue-900"
+              title={t('common.edit')}
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(attendance.id)}
+              className="text-red-600 hover:text-red-900"
+              title={t('common.delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [classes, attendanceStudents, stats, handleEdit, handleDelete, t])
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -718,20 +813,20 @@ export default function AttendancesPage() {
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={t('attendances.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
           <Select
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('common.all')} {t('courses.title')}</option>
             {classes
@@ -743,158 +838,32 @@ export default function AttendancesPage() {
               ))}
           </Select>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           <Input
             type="date"
             placeholder={t('common.from')}
             value={dateRangeStart}
             onChange={(e) => setDateRangeStart(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           />
           <Input
             type="date"
             placeholder={t('common.to')}
             value={dateRangeEnd}
             onChange={(e) => setDateRangeEnd(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           />
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  Дата
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Курс
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Студенти
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Статистика
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Створено
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Дії
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedAttendances.map((attendance) => {
-                const className = classes.find(c => c.id === attendance.class_id)?.name || '-'
-                const attendanceStats = stats[attendance.id] || { present: 0, absent: 0, validReason: 0 }
-                const studentsList = attendanceStudents[attendance.id] || []
-                return (
-                  <tr key={attendance.id}>
-                    <td className="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10">
-                      {formatDate(attendance.date)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium">
-                      {className}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex flex-col gap-1 max-w-xs">
-                        {studentsList.length > 0 ? (
-                          studentsList.map((student, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className={`inline-block w-2 h-2 rounded-full ${
-                                student.status === 'present' ? 'bg-green-500' :
-                                student.status === 'absent' ? 'bg-red-500' :
-                                'bg-yellow-500'
-                              }`}></span>
-                              <span className="truncate">{student.name}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2 flex-wrap">
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
-                          Присутні: {attendanceStats.present}
-                        </span>
-                        <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
-                          Відсутні: {attendanceStats.absent}
-                        </span>
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
-                          Поважна причина: {attendanceStats.validReason}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(attendance.created_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(attendance)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(attendance.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
-            <Select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="w-20"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </Select>
-            <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredAttendances.length)} з {filteredAttendances.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Попередня
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Наступна
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filteredAttendances}
+        initialPageSize={10}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
 
       {/* Add/Edit Modal */}
       <Modal

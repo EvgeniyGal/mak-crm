@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface Course {
   id: string
@@ -109,8 +111,7 @@ export default function CoursesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [studentSearchTerm, setStudentSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage] = useState(10)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -796,12 +797,6 @@ export default function CoursesPage() {
     return matchesSearch && matchesStatus
   })
 
-  const paginatedCourses = filteredCourses.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(filteredCourses.length / itemsPerPage)
 
   const getTeacherName = (teacherId: string) => {
     const teacher = teachers.find(t => t.id === teacherId)
@@ -818,6 +813,105 @@ export default function CoursesPage() {
     const student = students.find(s => s.id === studentId)
     return student ? `${student.student_first_name} ${student.student_last_name}` : studentId
   }
+
+  // DataTable handles sorting internally, so we just pass filteredCourses
+  const sortedCourses = filteredCourses
+
+  // Column definitions for DataTable
+  const columns: ColumnDef<Course>[] = useMemo(() => [
+    {
+      accessorKey: 'name',
+      header: t('courses.courseName'),
+      cell: ({ row }) => (
+        <div className="font-medium">{row.original.name}</div>
+      ),
+    },
+    {
+      accessorKey: 'teachers',
+      header: t('courses.teachers'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.teachers_ids.length > 0
+            ? row.original.teachers_ids.map(id => getTeacherName(id)).join(', ')
+            : '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'room',
+      header: t('courses.room'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 whitespace-nowrap">
+          {getRoomName(row.original.room_id)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'students',
+      header: t('courses.students'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.student_ids.length > 0
+            ? row.original.student_ids.slice(0, 3).map(id => getStudentName(id)).join(', ')
+            : '-'}
+          {row.original.student_ids.length > 3 && ` +${row.original.student_ids.length - 3}`}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'freePlaces',
+      header: t('courses.freePlaces'),
+      cell: ({ row }) => {
+        const available = getAvailableSeats(row.original)
+        return (
+          <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+            available > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {available} / {row.original.capacity || 0}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: t('courses.status'),
+      cell: ({ row }) => {
+        const status = row.original.status
+        return (
+          <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+            status === 'active' ? 'bg-green-100 text-green-800' :
+            status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {status}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: t('common.actions'),
+      cell: ({ row }) => {
+        const courseItem = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleEdit(courseItem)}
+              className="text-blue-600 hover:text-blue-900"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(courseItem.id)}
+              className="text-red-600 hover:text-red-900"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, teachers, rooms, students, handleEdit, handleDelete])
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -851,9 +945,9 @@ export default function CoursesPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('courses.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate min-w-0">{t('courses.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -861,29 +955,29 @@ export default function CoursesPage() {
               disabled={filteredCourses.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('courses.addCourse')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('courses.addCourse')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('courses.addCourse')}</span>
           </Button>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder="Пошук за назвою курсу або вчителем..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">Всі статуси</option>
             <option value="active">Активні</option>
@@ -894,133 +988,13 @@ export default function CoursesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  {t('courses.courseName')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('courses.teachers')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('courses.room')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('courses.students')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('courses.freePlaces')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('courses.status')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedCourses.map((courseItem) => {
-                const available = getAvailableSeats(courseItem)
-                return (
-                  <tr key={courseItem.id}>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium sticky left-0 bg-white z-10">
-                      {courseItem.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {courseItem.teachers_ids.length > 0
-                        ? courseItem.teachers_ids.map(id => getTeacherName(id)).join(', ')
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {getRoomName(courseItem.room_id)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {courseItem.student_ids.length > 0
-                        ? courseItem.student_ids.slice(0, 3).map(id => getStudentName(id)).join(', ')
-                        : '-'}
-                      {courseItem.student_ids.length > 3 && ` +${courseItem.student_ids.length - 3}`}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        available > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {available} / {courseItem.capacity || 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        courseItem.status === 'active' ? 'bg-green-100 text-green-800' :
-                        courseItem.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {courseItem.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(courseItem)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(courseItem.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">Показати:</label>
-            <Select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="w-20"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </Select>
-            <span className="text-sm text-gray-700">
-              Показано {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredCourses.length)} з {filteredCourses.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Попередня
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Наступна
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={sortedCourses}
+        initialPageSize={itemsPerPage}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
 
       {/* Add/Edit Modal */}
       <Modal

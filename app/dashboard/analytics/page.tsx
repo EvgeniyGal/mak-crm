@@ -357,13 +357,13 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Аналітика</h1>
+    <div className="p-4 md:p-8 space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h1 className="text-xl md:text-3xl font-bold">Аналітика</h1>
         <Select
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
-          className="w-48"
+          className="w-full md:w-48"
         >
           <option value="week">Останній тиждень</option>
           <option value="month">Останній місяць</option>
@@ -373,96 +373,112 @@ export default function AnalyticsPage() {
 
       {/* KPI Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500">Активні студенти</h3>
-          <p className="text-3xl font-bold mt-2">{kpiData?.totalActiveStudents || 0}</p>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-gray-500">Активні студенти</h3>
+          <p className="text-2xl md:text-3xl font-bold mt-2">{kpiData?.totalActiveStudents || 0}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500">Нові студенти (тиждень)</h3>
-          <p className="text-3xl font-bold mt-2">{kpiData?.newStudentsWeek || 0}</p>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-gray-500">Нові студенти (тиждень)</h3>
+          <p className="text-2xl md:text-3xl font-bold mt-2">{kpiData?.newStudentsWeek || 0}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500">Відвідуваність</h3>
-          <p className="text-3xl font-bold mt-2">{kpiData?.overallAttendanceRate || 0}%</p>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-gray-500">Відвідуваність</h3>
+          <p className="text-2xl md:text-3xl font-bold mt-2">{kpiData?.overallAttendanceRate || 0}%</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500">Оплата</h3>
-          <p className="text-3xl font-bold mt-2">{kpiData?.paymentCompletionRate || 0}%</p>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-gray-500">Оплата</h3>
+          <p className="text-2xl md:text-3xl font-bold mt-2">{kpiData?.paymentCompletionRate || 0}%</p>
         </div>
       </div>
 
       {/* Financial Summary */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Фінансовий звіт</h2>
-        <div className="grid grid-cols-3 gap-4">
+      <div className="bg-white rounded-lg shadow p-4 md:p-6">
+        <h2 className="text-lg md:text-xl font-semibold mb-4">Фінансовий звіт</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <p className="text-sm text-gray-500">Платежі</p>
-            <p className="text-2xl font-bold text-green-600">{kpiData?.totalPayments || 0}</p>
+            <p className="text-xs md:text-sm text-gray-500">Платежі</p>
+            <p className="text-xl md:text-2xl font-bold text-green-600">{kpiData?.totalPayments || 0}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Витрати</p>
-            <p className="text-2xl font-bold text-red-600">{kpiData?.totalExpenditures || 0} грн</p>
+            <p className="text-xs md:text-sm text-gray-500">Витрати</p>
+            <p className="text-xl md:text-2xl font-bold text-red-600">{kpiData?.totalExpenditures || 0} грн</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Зарплати</p>
-            <p className="text-2xl font-bold text-blue-600">{kpiData?.totalSalaries || 0} грн</p>
+            <p className="text-xs md:text-sm text-gray-500">Зарплати</p>
+            <p className="text-xl md:text-2xl font-bold text-blue-600">{kpiData?.totalSalaries || 0} грн</p>
           </div>
         </div>
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Enrollment Trends */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Динаміка набору студентів</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={enrollmentTrends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' })} />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="count" stroke="#3b82f6" name="Кількість студентів" />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">Динаміка набору студентів</h2>
+          <div className="w-full h-[250px] md:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={enrollmentTrends}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="date" 
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' })}
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Line type="monotone" dataKey="count" stroke="#3b82f6" name="Кількість студентів" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Attendance by Class */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Відвідуваність по класах</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={attendanceByClass}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="rate" fill="#10b981" name="Відвідуваність (%)" />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">Відвідуваність по класах</h2>
+          <div className="w-full h-[250px] md:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={attendanceByClass}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={100}
+                  tick={{ fontSize: 10 }}
+                />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Bar dataKey="rate" fill="#10b981" name="Відвідуваність (%)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Payment Types */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Типи платежів</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={paymentTypes}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {paymentTypes.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">Типи платежів</h2>
+          <div className="w-full h-[250px] md:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={paymentTypes}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {paymentTypes.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>

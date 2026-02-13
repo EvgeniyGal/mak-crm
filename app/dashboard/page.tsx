@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Edit, Trash2, Archive } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface AdminTask {
   id: string
@@ -514,6 +516,160 @@ export default function DashboardPage() {
     setEditingTask(null)
   }
 
+  // Column definitions for Absent Students table
+  const absentStudentsColumns: ColumnDef<AbsentStudent>[] = useMemo(() => [
+    {
+      accessorKey: 'student_name',
+      header: t('dashboard.student'),
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.student_name}</div>
+      ),
+    },
+    {
+      accessorKey: 'parent_name',
+      header: t('dashboard.parent'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.parent_name}</div>
+      ),
+    },
+    {
+      accessorKey: 'phone',
+      header: t('dashboard.phone'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.phone}</div>
+      ),
+    },
+    {
+      accessorKey: 'enrolled_classes',
+      header: t('dashboard.enrolledClasses'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.enrolled_classes.join(', ')}</div>
+      ),
+    },
+    {
+      accessorKey: 'last_attendance_date',
+      header: t('dashboard.lastAttendance'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 whitespace-nowrap">
+          {row.original.last_attendance_date ? formatDate(row.original.last_attendance_date) : t('common.no')}
+        </div>
+      ),
+    },
+  ], [t])
+
+  // Column definitions for Birthdays table
+  const birthdaysColumns: ColumnDef<Birthday>[] = useMemo(() => [
+    {
+      accessorKey: 'name',
+      header: t('dashboard.name'),
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.name}</div>
+      ),
+    },
+    {
+      accessorKey: 'type',
+      header: t('dashboard.type'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">
+          {row.original.type === 'student' ? t('dashboard.student') : t('dashboard.teachers')}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'birthday_date',
+      header: t('dashboard.birthday'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 whitespace-nowrap">
+          {formatDate(row.original.birthday_date)}
+        </div>
+      ),
+    },
+  ], [t])
+
+  // Column definitions for Admin Tasks table
+  const tasksColumns: ColumnDef<AdminTask>[] = useMemo(() => [
+    {
+      accessorKey: 'title',
+      header: t('adminTasks.titleLabel'),
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.title}</div>
+      ),
+    },
+    {
+      accessorKey: 'type',
+      header: t('adminTasks.type'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 capitalize">{row.original.type}</div>
+      ),
+    },
+    {
+      accessorKey: 'comment',
+      header: t('adminTasks.comment'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 max-w-xs truncate" title={row.original.comment || ''}>
+          {row.original.comment || '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: t('common.status'),
+      cell: ({ row }) => {
+        const status = row.original.status
+        return (
+          <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+            status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+          }`}>
+            {status === 'active' ? t('adminTasks.active') : t('adminTasks.archive')}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'created_at',
+      header: t('common.createdAt'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 whitespace-nowrap">
+          {formatDate(row.original.created_at)}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: t('common.actions'),
+      cell: ({ row }) => {
+        const task = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleEdit(task)}
+              className="text-blue-600 hover:text-blue-900"
+              title={t('common.edit')}
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            {task.status === 'active' && (
+              <button
+                onClick={() => handleArchive(task.id)}
+                className="text-yellow-600 hover:text-yellow-900"
+                title={t('adminTasks.archive')}
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={() => handleDelete(task.id)}
+              className="text-red-600 hover:text-red-900"
+              title={t('common.delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, handleEdit, handleArchive, handleDelete])
+
   if (loading) {
     return (
       <div className="p-8">
@@ -532,50 +688,12 @@ export default function DashboardPage() {
         {absentStudents.length === 0 ? (
           <p className="text-gray-500">{t('dashboard.noAbsentStudents')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.student')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.parent')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.phone')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.enrolledClasses')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.lastAttendance')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {absentStudents.map((student) => (
-                  <tr key={student.student_id}>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                      {student.student_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.parent_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.phone}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {student.enrolled_classes.join(', ')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.last_attendance_date ? formatDate(student.last_attendance_date) : t('common.no')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={absentStudentsColumns}
+            data={absentStudents}
+            initialPageSize={10}
+            maxHeight="400px"
+          />
         )}
       </div>
 
@@ -585,38 +703,12 @@ export default function DashboardPage() {
         {birthdays.length === 0 ? (
           <p className="text-gray-500">{t('dashboard.noBirthdays')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.name')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.type')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('dashboard.birthday')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {birthdays.map((b) => (
-                  <tr key={b.id}>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                      {b.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {b.type === 'student' ? t('dashboard.student') : t('dashboard.teachers')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(b.birthday_date)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={birthdaysColumns}
+            data={birthdays}
+            initialPageSize={10}
+            maxHeight="400px"
+          />
         )}
       </div>
 
@@ -646,89 +738,21 @@ export default function DashboardPage() {
             variant="outline"
             size="sm"
             onClick={() => window.location.href = '/dashboard/admin-tasks'}
+            className="p-2 md:px-3 md:py-1.5"
+            title={`${t('common.all')} ${t('adminTasks.title').toLowerCase()}`}
           >
-            {t('common.all')} {t('adminTasks.title').toLowerCase()}
+            <span className="hidden md:inline">{t('common.all')} {t('adminTasks.title').toLowerCase()}</span>
           </Button>
         </div>
         {tasks.length === 0 ? (
           <p className="text-gray-500">{t('dashboard.noTasks')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('adminTasks.titleLabel')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('adminTasks.type')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('adminTasks.comment')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('common.status')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('common.createdAt')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('common.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tasks.map((task) => (
-                  <tr key={task.id}>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                      {task.title}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                      {task.type}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {task.comment || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        task.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {task.status === 'active' ? t('adminTasks.active') : t('adminTasks.archive')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(task.created_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(task)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                        title={t('common.edit')}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      {task.status === 'active' && (
-                        <button
-                          onClick={() => handleArchive(task.id)}
-                          className="text-yellow-600 hover:text-yellow-900 mr-3"
-                          title={t('adminTasks.archive')}
-                        >
-                          <Archive className="h-4 w-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(task.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title={t('common.delete')}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={tasksColumns}
+            data={tasks}
+            initialPageSize={10}
+            maxHeight="400px"
+          />
         )}
       </div>
 

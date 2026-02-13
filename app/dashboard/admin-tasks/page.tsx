@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface AdminTask {
   id: string
@@ -32,8 +34,6 @@ export default function AdminTasksPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -94,7 +94,7 @@ export default function AdminTasksPage() {
     }
   }
 
-  const handleEdit = (task: AdminTask) => {
+  const handleEdit = useCallback((task: AdminTask) => {
     setEditingTask(task)
     setFormData({
       title: task.title,
@@ -103,9 +103,9 @@ export default function AdminTasksPage() {
       status: task.status,
     })
     setIsModalOpen(true)
-  }
+  }, [])
 
-  const handleArchive = async (id: string) => {
+  const handleArchive = useCallback(async (id: string) => {
     const comment = prompt('Введіть примітку для архівування:')
     if (comment === null) return
 
@@ -123,9 +123,9 @@ export default function AdminTasksPage() {
       console.error('Error archiving task:', error)
       alert('Помилка архівування завдання')
     }
-  }
+  }, [supabase, fetchTasks])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm(t('common.confirmDelete'))) return
 
     try {
@@ -139,7 +139,7 @@ export default function AdminTasksPage() {
       console.error('Error deleting task:', error)
       alert(t('common.errorDeleting'))
     }
-  }
+  }, [supabase, fetchTasks, t])
 
   const resetForm = () => {
     setFormData({
@@ -163,12 +163,83 @@ export default function AdminTasksPage() {
     return matchesSearch && matchesType && matchesStatus
   })
 
-  const paginatedTasks = filteredTasks.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
+  // Column definitions for DataTable
+  const columns: ColumnDef<AdminTask>[] = useMemo(() => [
+    {
+      accessorKey: 'title',
+      header: t('adminTasks.titleLabel'),
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.title}</div>
+      ),
+    },
+    {
+      accessorKey: 'type',
+      header: t('adminTasks.type'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{row.original.type}</div>
+      ),
+    },
+    {
+      accessorKey: 'comment',
+      header: t('adminTasks.comment'),
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500 max-w-xs truncate">{row.original.comment || '-'}</div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: t('common.status'),
+      cell: ({ row }) => (
+        <span className={`px-2 py-1 text-xs rounded-full ${
+          row.original.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+        }`}>
+          {row.original.status === 'active' ? t('adminTasks.active') : t('adminTasks.archive')}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'created_at',
+      header: t('common.createdAt'),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-sm text-gray-500">{formatDate(row.original.created_at)}</div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: t('common.actions'),
+      cell: ({ row }) => {
+        const task = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleEdit(task)}
+              className="text-blue-600 hover:text-blue-900"
+              title={t('common.edit')}
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            {task.status === 'active' && (
+              <button
+                onClick={() => handleArchive(task.id)}
+                className="text-yellow-600 hover:text-yellow-900"
+                title={t('adminTasks.archive')}
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={() => handleDelete(task.id)}
+              className="text-red-600 hover:text-red-900"
+              title={t('common.delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, handleEdit, handleArchive, handleDelete])
 
   const handleExportXLS = () => {
     const columns: ExportColumn<AdminTask>[] = [
@@ -198,9 +269,9 @@ export default function AdminTasksPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{t('adminTasks.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold truncate min-w-0">{t('adminTasks.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -208,29 +279,29 @@ export default function AdminTasksPage() {
               disabled={filteredTasks.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('adminTasks.addTask')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('adminTasks.addTask')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('adminTasks.addTask')}</span>
           </Button>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={t('adminTasks.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
           <Select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('common.all')} {t('adminTasks.allTypes')}</option>
             <option value="first lesson">{t('adminTasks.firstLesson')}</option>
@@ -241,7 +312,7 @@ export default function AdminTasksPage() {
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-48 flex-shrink-0"
           >
             <option value="all">{t('common.all')} {t('common.statuses')}</option>
             <option value="active">{t('common.active')}</option>
@@ -251,121 +322,13 @@ export default function AdminTasksPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  {t('adminTasks.titleLabel')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('adminTasks.type')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('adminTasks.comment')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.status')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.createdAt')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedTasks.map((task) => (
-                <tr key={task.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium sticky left-0 bg-white z-10">
-                    {task.title}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {task.type}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                    {task.comment || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      task.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {task.status === 'active' ? t('adminTasks.active') : t('adminTasks.archive')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(task.created_at)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(task)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    {task.status === 'active' && (
-                      <button
-                        onClick={() => handleArchive(task.id)}
-                        className="text-yellow-600 hover:text-yellow-900 mr-3"
-                      >
-                        <Archive className="h-4 w-4" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDelete(task.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">{t('common.show')}:</label>
-            <select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-900 bg-white"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
-            <span className="text-sm text-gray-700">
-              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTasks.length)} {t('common.of')} {filteredTasks.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              {t('common.previous')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              {t('common.next')}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filteredTasks}
+        initialPageSize={10}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
 
       {/* Add/Edit Modal */}
       <Modal

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next'
 import { useOwner } from '@/lib/hooks/useOwner'
 import { ExportButton } from '@/components/ui/export-button'
 import { exportToXLS, exportToCSV, ExportColumn } from '@/lib/utils/export'
+import { DataTable } from '@/components/ui/data-table'
+import { ColumnDef } from '@tanstack/react-table'
 
 interface Room {
   id: string
@@ -33,8 +35,7 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRoom, setEditingRoom] = useState<Room | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage] = useState(10)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -134,16 +135,57 @@ export default function RoomsPage() {
     return classes.filter(c => c.room_id === roomId)
   }
 
-  const paginatedRooms = rooms.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
-  const totalPages = Math.ceil(rooms.length / itemsPerPage)
-
   const getClassesForRoom = (roomId: string) => {
     return classes.filter(c => c.room_id === roomId).map(c => c.name).join(', ') || '-'
   }
+
+  // Column definitions for DataTable
+  const columns: ColumnDef<Room>[] = useMemo(() => [
+    {
+      accessorKey: 'name',
+      header: t('rooms.roomName'),
+      cell: ({ row }) => (
+        <div className="font-medium">{row.original.name}</div>
+      ),
+    },
+    {
+      accessorKey: 'classes',
+      header: t('rooms.classes'),
+      cell: ({ row }) => {
+        const assignedClasses = getAssignedClasses(row.original.id)
+        return (
+          <div className="text-sm text-gray-500">
+            {assignedClasses.length > 0
+              ? assignedClasses.map(c => c.name).join(', ')
+              : '-'}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: t('common.actions'),
+      cell: ({ row }) => {
+        const room = row.original
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleEdit(room)}
+              className="text-blue-600 hover:text-blue-900"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(room.id)}
+              className="text-red-600 hover:text-red-900"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      },
+    },
+  ], [t, classes, handleEdit, handleDelete])
 
   const handleExportXLS = () => {
     const columns: ExportColumn[] = [
@@ -169,9 +211,9 @@ export default function RoomsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t('rooms.title')}</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-2 mb-6">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate min-w-0">{t('rooms.title')}</h1>
+        <div className="flex gap-2 flex-shrink-0">
           {isOwner && (
             <ExportButton 
               onExportXLS={handleExportXLS}
@@ -179,104 +221,21 @@ export default function RoomsPage() {
               disabled={rooms.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('rooms.addRoom')}
+          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('rooms.addRoom')}>
+            <Plus className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">{t('rooms.addRoom')}</span>
           </Button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-300px)]">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100 sticky top-0 z-30">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-100 z-40 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  {t('rooms.roomName')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('rooms.classes')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('common.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedRooms.map((room) => {
-                const assignedClasses = getAssignedClasses(room.id)
-                return (
-                  <tr key={room.id}>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium sticky left-0 bg-white z-10">
-                      {room.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {assignedClasses.length > 0
-                        ? assignedClasses.map(c => c.name).join(', ')
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(room)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(room.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-700">{t('common.show')}</label>
-            <select
-              value={itemsPerPage.toString()}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="border border-gray-300 rounded px-2 py-1 text-sm"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
-            <span className="text-sm text-gray-700">
-              {t('common.showing')} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, rooms.length)} {t('common.of')} {rooms.length}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              {t('common.previous')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              {t('common.next')}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={rooms}
+        initialPageSize={itemsPerPage}
+        stickyFirstColumn={true}
+        maxHeight="calc(100vh-300px)"
+      />
 
       {/* Add/Edit Modal */}
       <Modal
