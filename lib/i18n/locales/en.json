@@ -374,6 +374,7 @@
     "selectPackageType": "Select Package Type",
     "selectClassFirst": "Please select a class first",
     "noStudentsInCourse": "No students enrolled in this course",
+    "fillRequired": "Please fill required fields: Class, Student, Package type.",
     "amount": "Amount",
     "paymentType": "Payment Type",
     "type": "Type",

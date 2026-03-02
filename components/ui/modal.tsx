@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -10,13 +11,15 @@ interface ModalProps {
   title?: string
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
+  /** Use higher z-index so this modal appears above another open modal */
+  elevated?: boolean
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
-  if (!isOpen) return null
+export function Modal({ isOpen, onClose, title, children, size = 'md', elevated }: ModalProps) {
+  const zClass = elevated ? 'z-[60]' : 'z-50'
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+  const content = !isOpen ? null : (
+    <div className={cn('fixed inset-0 flex items-center justify-center', zClass)}>
       <div
         className="fixed inset-0 bg-black/50"
         onClick={onClose}
@@ -31,6 +34,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             'w-full max-w-4xl': size === 'xl',
           }
         )}
+        onClick={(e) => e.stopPropagation()}
       >
         {title && (
           <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
@@ -49,5 +53,8 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       </div>
     </div>
   )
+
+  if (typeof document === 'undefined') return null
+  return createPortal(content, document.body)
 }
 

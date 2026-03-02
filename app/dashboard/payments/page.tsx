@@ -82,6 +82,10 @@ export default function PaymentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [studentPayments, setStudentPayments] = useState<Payment[]>([])
   const [loadingStudentDetails, setLoadingStudentDetails] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const [formData, setFormData] = useState({
     student_id: '',
@@ -214,6 +218,14 @@ export default function PaymentsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSubmitError(null)
+    if (!editingPayment) {
+      if (!formData.class_id || !formData.student_id || !formData.package_type_id) {
+        setSubmitError(t('payments.fillRequired'))
+        return
+      }
+    }
+    setSubmitting(true)
     try {
       if (editingPayment) {
         const updateData: {
@@ -248,10 +260,17 @@ export default function PaymentsPage() {
           .eq('id', editingPayment.id)
         if (error) throw error
       } else {
-        // Create payment
+        // Create payment — only send columns that exist on the table (no payment_date)
         const { error } = await supabase
           .from('payments')
-          .insert([formData])
+          .insert([{
+            student_id: formData.student_id,
+            class_id: formData.class_id,
+            package_type_id: formData.package_type_id,
+            status: formData.status,
+            type: formData.type,
+            comment: formData.comment || null,
+          }])
         if (error) throw error
 
         // Add lessons to student_class_lessons regardless of payment status
@@ -302,7 +321,9 @@ export default function PaymentsPage() {
       resetForm()
     } catch (error) {
       console.error('Error saving payment:', error)
-      alert(t('payments.errorSaving'))
+      setSubmitError(t('payments.errorSaving') || (error instanceof Error ? error.message : 'Помилка збереження'))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -323,8 +344,7 @@ export default function PaymentsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('common.confirmDelete'))) return
-
+    setDeleting(true)
     try {
       const { error } = await supabase
         .from('payments')
@@ -332,9 +352,12 @@ export default function PaymentsPage() {
         .eq('id', id)
       if (error) throw error
       await fetchPayments()
+      setDeleteConfirmId(null)
     } catch (error) {
       console.error('Error deleting payment:', error)
       alert(t('common.errorDeleting'))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -349,6 +372,7 @@ export default function PaymentsPage() {
       payment_date: '',
     })
     setEditingPayment(null)
+    setSubmitError(null)
   }
 
   const filteredPayments = payments.filter((payment) => {
@@ -620,8 +644,10 @@ export default function PaymentsPage() {
               <Edit className="h-4 w-4" />
             </button>
             <button
-              onClick={() => handleDelete(payment.id)}
+              type="button"
+              onClick={() => setDeleteConfirmId(payment.id)}
               className="text-red-600 hover:text-red-900"
+              title={t('common.delete')}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -647,7 +673,19 @@ export default function PaymentsPage() {
               disabled={sortedPayments.length === 0}
             />
           )}
-          <Button onClick={() => { resetForm(); setIsModalOpen(true) }} variant="success" className="p-2 md:px-4 md:py-2" title={t('payments.addPayment')}>
+          <Button
+            type="button"
+            onClick={() => {
+              try {
+                resetForm()
+              } finally {
+                setIsModalOpen(true)
+              }
+            }}
+            variant="success"
+            className="p-2 md:px-4 md:py-2"
+            title={t('payments.addPayment')}
+          >
             <Plus className="h-4 w-4 md:mr-2" />
             <span className="hidden md:inline">{t('payments.addPayment')}</span>
           </Button>
@@ -757,7 +795,12 @@ export default function PaymentsPage() {
         title={editingPayment ? t('payments.editPayment') : t('payments.addPayment')}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {submitError && (
+            <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+              {submitError}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('payments.class')} *</label>
             <Select
@@ -885,26 +928,48 @@ export default function PaymentsPage() {
             />
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm() }}>
+            <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm(); setSubmitError(null) }} disabled={submitting}>
               {t('common.cancel')}
             </Button>
             <Button 
               type="submit" 
               variant={editingPayment ? "default" : "success"}
-              disabled={editingPayment ? (() => {
+              disabled={submitting || (editingPayment ? (() => {
                 const statusChanged = formData.status !== editingPayment.status
                 const commentChanged = formData.comment !== (editingPayment.comment || '')
                 const originalDate = editingPayment.created_at ? new Date(editingPayment.created_at).toISOString().split('T')[0] : ''
                 const dateChanged = formData.payment_date && formData.payment_date !== originalDate
                 const typeChanged = editingPayment.status === 'pending' && formData.status === 'paid' && formData.type !== editingPayment.type
-                // Button is enabled if any field changed
                 return !statusChanged && !commentChanged && !dateChanged && !typeChanged
-              })() : false}
+              })() : false)}
             >
-              {editingPayment ? t('common.save') : t('payments.addPayment')}
+              {submitting ? (t('common.loading') || 'Збереження...') : (editingPayment ? t('common.save') : t('payments.addPayment'))}
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        title={t('common.delete')}
+        size="sm"
+      >
+        <p className="text-gray-700 mb-6">{t('common.confirmDelete')}</p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deleting}
+            onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+          >
+            {deleting ? t('common.loading') : t('common.delete')}
+          </Button>
+        </div>
       </Modal>
 
       {/* Student Details Modal */}
