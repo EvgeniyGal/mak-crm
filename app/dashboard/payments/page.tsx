@@ -234,9 +234,15 @@ export default function PaymentsPage() {
           type?: string
           created_at?: string
           updated_at?: string
+          package_type_id?: string
         } = {
           status: formData.status,
           comment: formData.comment,
+        }
+
+        // Allow changing package type on edit
+        if (formData.package_type_id && formData.package_type_id !== editingPayment.package_type_id) {
+          updateData.package_type_id = formData.package_type_id
         }
 
         // Only allow type change when changing status from pending to paid
@@ -259,6 +265,54 @@ export default function PaymentsPage() {
           .update(updateData)
           .eq('id', editingPayment.id)
         if (error) throw error
+
+        // If package type changed, adjust lessons in student_class_lessons
+        if (formData.package_type_id && formData.package_type_id !== editingPayment.package_type_id) {
+          const originalPackage = packageTypes.find(pt => pt.id === editingPayment.package_type_id)
+          const newPackage = packageTypes.find(pt => pt.id === formData.package_type_id)
+
+          if (originalPackage && newPackage) {
+            const lessonDiff = newPackage.lesson_count - originalPackage.lesson_count
+
+            if (lessonDiff !== 0) {
+              try {
+                const { data: existingRecord, error: lessonsError } = await supabase
+                  .from('student_class_lessons')
+                  .select('id, lesson_count')
+                  .eq('student_id', editingPayment.student_id)
+                  .eq('class_id', editingPayment.class_id)
+                  .single()
+
+                if (lessonsError && lessonsError.code !== 'PGRST116') {
+                  console.error('Error fetching student_class_lessons for payment edit:', lessonsError)
+                } else if (existingRecord) {
+                  const newCount = Math.max(0, existingRecord.lesson_count + lessonDiff)
+                  const { error: updateLessonsError } = await supabase
+                    .from('student_class_lessons')
+                    .update({ lesson_count: newCount })
+                    .eq('id', existingRecord.id)
+                  if (updateLessonsError) {
+                    console.error('Error updating student_class_lessons for payment edit:', updateLessonsError)
+                  }
+                } else {
+                  const initialCount = Math.max(0, newPackage.lesson_count)
+                  const { error: insertLessonsError } = await supabase
+                    .from('student_class_lessons')
+                    .insert({
+                      student_id: editingPayment.student_id,
+                      class_id: editingPayment.class_id,
+                      lesson_count: initialCount,
+                    })
+                  if (insertLessonsError) {
+                    console.error('Error creating student_class_lessons for payment edit:', insertLessonsError)
+                  }
+                }
+              } catch (lessonsException) {
+                console.error('Unexpected error adjusting lessons for payment edit:', lessonsException)
+              }
+            }
+          }
+        }
       } else {
         // Create payment — only send columns that exist on the table (no payment_date)
         const { error } = await supabase
@@ -861,7 +915,7 @@ export default function PaymentsPage() {
               value={formData.package_type_id}
               onChange={(e) => handlePackageTypeChange(e.target.value)}
               required
-              disabled={!formData.class_id || !!editingPayment}
+              disabled={!formData.class_id}
             >
               <option value="">{t('common.selectPackageType')}</option>
               {availablePackageTypes
@@ -924,7 +978,6 @@ export default function PaymentsPage() {
               className="w-full border-2 border-gray-400 rounded-md px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               rows={3}
               placeholder={t('payments.commentPlaceholder')}
-              disabled={!!editingPayment}
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -940,7 +993,9 @@ export default function PaymentsPage() {
                 const originalDate = editingPayment.created_at ? new Date(editingPayment.created_at).toISOString().split('T')[0] : ''
                 const dateChanged = formData.payment_date && formData.payment_date !== originalDate
                 const typeChanged = editingPayment.status === 'pending' && formData.status === 'paid' && formData.type !== editingPayment.type
-                return !statusChanged && !commentChanged && !dateChanged && !typeChanged
+                const packageChanged = formData.package_type_id !== editingPayment.package_type_id
+                // Enable Save if any relevant field changed
+                return !statusChanged && !commentChanged && !dateChanged && !typeChanged && !packageChanged
               })() : false)}
             >
               {submitting ? (t('common.loading') || 'Збереження...') : (editingPayment ? t('common.save') : t('payments.addPayment'))}
