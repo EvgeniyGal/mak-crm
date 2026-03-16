@@ -168,5 +168,7 @@ The system supports Ukrainian (default) and English languages. Language switcher
 - Authentication required for all dashboard routes
 
 ## License
+MIT
+
 
 Private project for educational centres.
